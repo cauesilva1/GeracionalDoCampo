@@ -887,7 +887,7 @@ export function skipSeason(state: ManagerState): ManagerState {
       },
       sim.table,
       sim.userResult,
-      { skipEvents: true, softFitness: true },
+      { skipEvents: true, softFitness: true, protectJob: true },
     );
   }
   return cur;
@@ -1223,7 +1223,7 @@ function finishSeason(
     peakTier,
   };
 
-  // Job loss on poor seasons (protectJob is unused by skipSeason; kept for rare callers).
+  // Normal seasons can end in a sacking; skip-season uses protectJob so it only wraps the season.
   if (!ok && confidence < 35 && !opts?.protectJob) {
     return endCareer(
       {
