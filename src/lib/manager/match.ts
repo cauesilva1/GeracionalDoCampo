@@ -3,7 +3,7 @@ import {
   coachOvrMatchBonus,
   philosophyMatchBonus,
 } from "@/lib/manager/legacy";
-import { xiStrength } from "@/lib/manager/players";
+import { xiPowers } from "@/lib/manager/players";
 import { clamp, rand, shuffle, uid } from "@/lib/utils";
 import type {
   CoachPhilosophy,
@@ -17,20 +17,21 @@ import type {
 } from "@/types/manager";
 
 function styleBonus(style: TacticStyle, asHome: boolean): number {
-  const home = asHome ? 1.2 : 0;
+  const home = asHome ? 1.8 : 0;
   switch (style) {
     case "pressing":
-      return 1.5 + home;
+      return 2.2 + home;
     case "direct":
-      return 0.8 + home;
+      return 1.4 + home;
     default:
-      return 1.0 + home;
+      return 1.6 + home;
   }
 }
 
-function expectedGoals(strength: number, opp: number): number {
-  const diff = (strength - opp) / 12;
-  return clamp(1.15 + diff, 0.35, 3.2);
+/** xG from attack power vs opponent defense. */
+function expectedGoals(attack: number, oppDefense: number): number {
+  const diff = (attack - oppDefense) / 11;
+  return clamp(1.25 + diff, 0.45, 3.4);
 }
 
 function sampleGoals(xg: number): number {
@@ -171,7 +172,7 @@ export function reverseResult(
   });
 }
 
-function strengthForClub(
+function powersForClub(
   clubId: string,
   userClubId: string,
   userSquad: SquadPlayer[],
@@ -181,26 +182,35 @@ function strengthForClub(
   asHome: boolean,
   coachPhilosophy?: CoachPhilosophy,
   coachOvr?: number,
-): number {
+): { attack: number; defense: number } {
   if (clubId === userClubId) {
     const philo = coachPhilosophy
       ? philosophyMatchBonus(coachPhilosophy, userTactics.style)
       : 0;
     const skill = coachOvr != null ? coachOvrMatchBonus(coachOvr) : 0;
-    return xiStrength(
+    return xiPowers(
       userSquad,
       userStarters,
       userTactics.attack,
       userTactics.midfield,
       userTactics.defense,
       styleBonus(userTactics.style, asHome) + philo + skill,
+      userTactics.formation,
     );
   }
   const club = getClub(clubId);
   const squad = aiSquads[clubId] ?? [];
-  const top = [...squad].sort((a, b) => b.ovr - a.ovr).slice(0, 11).map((p) => p.id);
-  const base = xiStrength(squad, top, 50, 50, 50, asHome ? 1.2 : 0);
-  return clamp(base * 0.55 + (club?.prestige ?? 60) * 0.4, 48, 94);
+  const top = [...squad]
+    .sort((a, b) => b.ovr - a.ovr)
+    .slice(0, 11)
+    .map((p) => p.id);
+  const base = xiPowers(squad, top, 52, 52, 52, asHome ? 1.8 : 0.4);
+  // Prestige nudges AI, but squad quality dominates (was 40% prestige).
+  const prestige = club?.prestige ?? 60;
+  return {
+    attack: clamp(base.attack * 0.72 + prestige * 0.22, 50, 92),
+    defense: clamp(base.defense * 0.72 + prestige * 0.22, 50, 92),
+  };
 }
 
 export function simulateMatchday(input: {
@@ -235,7 +245,7 @@ export function simulateMatchday(input: {
   const fixtures = input.fixtures.map((fx) => {
     if (fx.matchday !== matchday || fx.played) return fx;
 
-    const homeStr = strengthForClub(
+    const home = powersForClub(
       fx.homeId,
       userClubId,
       userSquad,
@@ -246,7 +256,7 @@ export function simulateMatchday(input: {
       coachPhilosophy,
       coachOvr,
     );
-    const awayStr = strengthForClub(
+    const away = powersForClub(
       fx.awayId,
       userClubId,
       userSquad,
@@ -258,8 +268,8 @@ export function simulateMatchday(input: {
       coachOvr,
     );
 
-    const hg = sampleGoals(expectedGoals(homeStr, awayStr));
-    const ag = sampleGoals(expectedGoals(awayStr, homeStr));
+    const hg = sampleGoals(expectedGoals(home.attack, away.defense));
+    const ag = sampleGoals(expectedGoals(away.attack, home.defense));
 
     table = applyResult(table, fx.homeId, fx.awayId, hg, ag);
 
@@ -294,7 +304,7 @@ export function simulateMatchday(input: {
   return { fixtures, table: sortTable(table), userResult };
 }
 
-function buildEvents(
+export function buildEvents(
   homeId: string,
   awayId: string,
   hg: number,

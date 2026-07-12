@@ -125,10 +125,9 @@ export function MatchLiveOverlay({
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [subOutId, setSubOutId] = useState<string | null>(null);
-  const [scoreMod, setScoreMod] = useState<"none" | "extra" | "drop">("none");
 
   const clockStopRef = useRef(false);
-  const appliedRef = useRef(new Set<number>());
+  const appliedRef = useRef(new Set<string>());
   const pausedRef = useRef(false);
 
   const home = getClub(match.homeId);
@@ -141,41 +140,16 @@ export function MatchLiveOverlay({
     ? (away?.colors.primary ?? "#7dd3fc")
     : (home?.colors.primary ?? "#7dd3fc");
 
-  const goals = useMemo(() => {
-    let base = match.events.filter((e) => e.kind === "goal");
-    if (scoreMod === "extra") {
-      base = [
-        ...base,
-        {
-          minute: 84,
-          kind: "goal" as const,
-          clubId,
-          textKey: "mgr.event.goal",
-          playerName: tr("mgr.live.tacticalGoal"),
-        },
-      ].sort((a, b) => a.minute - b.minute);
-    }
-    if (scoreMod === "drop") {
-      const filtered = base.filter(
-        (g) => !(g.clubId === clubId && g.minute >= 70),
-      );
-      if (filtered.length) base = filtered;
-    }
-    return base;
-  }, [match.events, clubId, tr, scoreMod]);
+  // Official score only — live tactics never invent goals (avoids 8–0 vs 4–0 desync).
+  const goals = useMemo(
+    () => match.events.filter((e) => e.kind === "goal"),
+    [match.events],
+  );
 
-  const finalScore = useMemo(() => {
-    let h = 0;
-    let a = 0;
-    for (const g of goals) {
-      if (g.clubId === match.homeId) h++;
-      else a++;
-    }
-    if (goals.length === 0) {
-      return { h: match.homeGoals, a: match.awayGoals };
-    }
-    return { h, a };
-  }, [goals, match.homeId, match.homeGoals, match.awayGoals]);
+  const finalScore = useMemo(
+    () => ({ h: match.homeGoals, a: match.awayGoals }),
+    [match.homeGoals, match.awayGoals],
+  );
 
   useEffect(() => {
     pausedRef.current = boardOpen || finished;
@@ -192,7 +166,6 @@ export function MatchLiveOverlay({
     setBoardOpen(false);
     setFinished(false);
     setMomentum(0);
-    setScoreMod("none");
     setSubOutId(null);
 
     const id = window.setInterval(() => {
@@ -233,12 +206,13 @@ export function MatchLiveOverlay({
     );
   }, [minute, boardOpen, finished, style]);
 
-  // Goals + full time
+  // Goals + full time — stable keys so score never duplicates
   useEffect(() => {
     for (let i = 0; i < goals.length; i++) {
       const g = goals[i]!;
-      if (g.minute > minute || appliedRef.current.has(i)) continue;
-      appliedRef.current.add(i);
+      const key = `${g.minute}-${g.clubId}-${g.playerName ?? i}`;
+      if (g.minute > minute || appliedRef.current.has(key)) continue;
+      appliedRef.current.add(key);
       const scorer = g.playerName ?? tr(g.textKey);
       if (g.clubId === match.homeId) setHomeGoals((n) => n + 1);
       else setAwayGoals((n) => n + 1);
@@ -276,12 +250,6 @@ export function MatchLiveOverlay({
     finalScore.h,
     finalScore.a,
   ]);
-
-  useEffect(() => {
-    if (scoreMod !== "none") return;
-    if (momentum >= 0.4) setScoreMod("extra");
-    else if (momentum <= -0.25) setScoreMod("drop");
-  }, [momentum, scoreMod]);
 
   const applyFormation = (f: FormationId) => {
     setFormation(f);
@@ -366,11 +334,7 @@ export function MatchLiveOverlay({
   };
 
   const confirmFinish = () => {
-    const changed =
-      finalScore.h !== match.homeGoals || finalScore.a !== match.awayGoals
-        ? { homeGoals: finalScore.h, awayGoals: finalScore.a }
-        : undefined;
-    onDone(changed);
+    onDone();
   };
 
   const openBoard = () => {

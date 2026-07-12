@@ -21,6 +21,7 @@ import {
 import {
   applyResult,
   boardConfidenceDelta,
+  buildEvents,
   buildFixtures,
   emptyTable,
   reverseResult,
@@ -426,7 +427,8 @@ export function playMatchday(state: ManagerState): ManagerState {
       ...s,
       fixtures: sim.fixtures,
       table: sim.table,
-      lastResult: sim.userResult,
+      // Keep previous lastResult until FT — avoid showing final score under the button mid-match.
+      lastResult: s.lastResult,
     },
   };
 }
@@ -483,6 +485,14 @@ export function finishLiveMatch(
       ...live,
       homeGoals: override.homeGoals,
       awayGoals: override.awayGoals,
+      events: buildEvents(
+        live.homeId,
+        live.awayId,
+        override.homeGoals,
+        override.awayGoals,
+        state.career.clubId,
+        state.squad,
+      ),
       summaryKey: won
         ? "mgr.match.win"
         : drawn
@@ -526,11 +536,11 @@ function finishMatchAftermath(
     if (!state.starters.includes(p.id)) {
       return {
         ...p,
-        fitness: clamp(p.fitness + 4, 50, 100),
+        fitness: clamp(p.fitness + 6, 55, 100),
         injuredWeeks: Math.max(0, p.injuredWeeks - 1),
       };
     }
-    let fitness = clamp(p.fitness - rand(3, 9), 45, 100);
+    let fitness = clamp(p.fitness - rand(2, 5), 52, 100);
     let injuredWeeks = p.injuredWeeks;
     let morale = p.morale;
     if (Math.random() < 0.04) injuredWeeks = Math.round(rand(1, 3));

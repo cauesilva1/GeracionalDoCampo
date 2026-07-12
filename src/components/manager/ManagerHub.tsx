@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ClubCrest } from "@/components/manager/ClubCrest";
 import { ManagerLegacy } from "@/components/manager/ManagerLegacy";
@@ -16,6 +16,7 @@ import { sortTable } from "@/lib/manager/match";
 import {
   FORMATION_SLOTS,
   type FormationId,
+  type MarketListing,
   type TacticStyle,
 } from "@/types/manager";
 
@@ -74,6 +75,8 @@ export function ManagerHub() {
     doViewLegacy,
     restart,
   } = useManagerActions();
+
+  const [buyPreview, setBuyPreview] = useState<MarketListing | null>(null);
 
   const career = state.career;
   const season = state.season;
@@ -416,7 +419,7 @@ export function ManagerHub() {
             ) : (
               <p className="text-center text-xs text-white/40">—</p>
             )}
-            {season.lastResult && (
+            {season.lastResult && state.phase !== "match_live" && (
               <div className="mt-2 border-t border-white/10 pt-2 text-center">
                 <p className="font-display text-arena-accent">
                   {tr(season.lastResult.summaryKey)}{" "}
@@ -544,6 +547,7 @@ export function ManagerHub() {
                     <th className="py-1">{tr("mgr.pos")}</th>
                     <th>Nome</th>
                     <th>{tr("mgr.ovr")}</th>
+                    <th>{tr("mgr.fit")}</th>
                     <th />
                   </tr>
                 </thead>
@@ -565,6 +569,15 @@ export function ManagerHub() {
                           {p.injuredWeeks > 0 ? " ⚕" : ""}
                         </td>
                         <td className="font-display">{p.ovr}</td>
+                        <td
+                          className={`font-mono text-[10px] ${
+                            p.fitness < 60
+                              ? "text-arena-buzzer"
+                              : "text-white/50"
+                          }`}
+                        >
+                          {p.fitness}
+                        </td>
                         <td>
                           {!state.starters.includes(p.id) &&
                             season.transferWindowOpen && (
@@ -614,7 +627,11 @@ export function ManagerHub() {
                           : "border-white/5"
                       }`}
                     >
-                      <div className="min-w-0">
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 cursor-pointer text-left"
+                        onClick={() => setBuyPreview(listing)}
+                      >
                         <p className="truncate text-white">
                           {listing.isSuper ? (
                             <span className="mr-1 font-mono text-[8px] uppercase text-arena-accent">
@@ -627,21 +644,20 @@ export function ManagerHub() {
                           </span>
                         </p>
                         <p className="font-mono text-[8px] text-white/35">
-                          {m(listing.askingPrice)}
+                          {m(listing.askingPrice)} · {listing.fromClubName}
                           {block !== "ok" ? (
                             <span className="ml-1 text-arena-buzzer/80">
                               · {tr(`mgr.block.${block}`)}
                             </span>
                           ) : null}
                         </p>
-                      </div>
+                      </button>
                       <Button
                         variant="outline"
                         className="shrink-0 !px-1.5 !py-0.5 text-[9px]"
-                        disabled={block !== "ok"}
-                        onClick={() => doBuy(listing.id)}
+                        onClick={() => setBuyPreview(listing)}
                       >
-                        {tr("mgr.buy")}
+                        {tr("mgr.view")}
                       </Button>
                     </div>
                   );
@@ -746,6 +762,102 @@ export function ManagerHub() {
           </Section>
         </div>
       </div>
+
+      {buyPreview && (() => {
+        const p = buyPreview.player;
+        const block = canBuyPlayer(state, buyPreview);
+        const attrs = [
+          ["pace", p.attrs.pace],
+          ["shoot", p.attrs.shoot],
+          ["pass", p.attrs.pass],
+          ["defend", p.attrs.defend],
+          ["physical", p.attrs.physical],
+          ["mental", p.attrs.mental],
+        ] as const;
+        return (
+          <div
+            className="fixed inset-0 z-40 flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"
+            role="dialog"
+            aria-modal
+            onClick={() => setBuyPreview(null)}
+          >
+            <div
+              className="w-full max-w-sm border border-white/15 bg-arena-bg p-4 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="font-mono text-[9px] uppercase tracking-wider text-arena-accent">
+                    {p.pos} · {buyPreview.fromClubName}
+                    {buyPreview.isSuper ? ` · ${tr("mgr.market.super")}` : ""}
+                  </p>
+                  <h3 className="font-display text-xl text-white">{p.name}</h3>
+                  <p className="mt-0.5 font-mono text-[10px] text-white/45">
+                    {tr("mgr.age")} {p.age} · {tr("mgr.ovr")} {p.ovr} ·{" "}
+                    {tr("mgr.pot")} {p.potential}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="cursor-pointer font-mono text-[10px] uppercase text-white/40 hover:text-white"
+                  onClick={() => setBuyPreview(null)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-1.5">
+                {attrs.map(([key, val]) => (
+                  <div
+                    key={key}
+                    className="border border-white/10 bg-white/[0.03] px-2 py-1.5 text-center"
+                  >
+                    <p className="font-mono text-[8px] uppercase text-white/35">
+                      {tr(`mgr.attr.${key}`)}
+                    </p>
+                    <p className="font-display text-lg text-white">{val}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 space-y-1 border-t border-white/10 pt-2 font-mono text-[10px] text-white/55">
+                <p>
+                  {tr("mgr.fee")}:{" "}
+                  <span className="text-arena-accent">
+                    {m(buyPreview.askingPrice)}
+                  </span>
+                </p>
+                <p>
+                  {tr("mgr.wageWeek")}: {m(p.wage)}
+                </p>
+                {block !== "ok" ? (
+                  <p className="text-arena-buzzer">{tr(`mgr.block.${block}`)}</p>
+                ) : null}
+              </div>
+
+              <div className="mt-3 flex gap-2">
+                <Button
+                  variant="ghost"
+                  className="flex-1 !py-2 text-[11px]"
+                  onClick={() => setBuyPreview(null)}
+                >
+                  {tr("mgr.cancel")}
+                </Button>
+                <Button
+                  className="flex-1 !py-2 text-[11px]"
+                  disabled={block !== "ok"}
+                  onClick={() => {
+                    doBuy(buyPreview.id);
+                    setBuyPreview(null);
+                  }}
+                >
+                  {tr("mgr.confirmBuy")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -69,7 +69,7 @@ export function canSellPlayer(
   return "ok";
 }
 
-/** List sellable players from AI clubs + rare superstar. */
+/** List sellable players from AI clubs + rare superstar. Mix of tiers so buys matter. */
 export function buildRealMarket(
   aiSquads: Record<string, SquadPlayer[]>,
   clubNames: Record<string, string>,
@@ -77,15 +77,22 @@ export function buildRealMarket(
 ): MarketListing[] {
   const pool: { player: SquadPlayer; clubId: string }[] = [];
   for (const [clubId, squad] of Object.entries(aiSquads)) {
-    const sorted = [...squad].sort((a, b) => a.ovr - b.ovr);
-    for (const player of sorted.slice(
-      0,
-      Math.max(4, Math.floor(squad.length * 0.35)),
-    )) {
-      if (player.age >= 30 || player.ovr < 78 || Math.random() < 0.35) {
-        pool.push({ player, clubId });
+    const sorted = [...squad].sort((a, b) => b.ovr - a.ovr);
+    // Top third + middle third + some fringe — not only the worst players.
+    const top = sorted.slice(0, Math.max(2, Math.floor(squad.length * 0.25)));
+    const mid = sorted.slice(
+      Math.floor(squad.length * 0.25),
+      Math.floor(squad.length * 0.65),
+    );
+    const fringe = sorted.slice(Math.floor(squad.length * 0.65));
+    const pick = (arr: SquadPlayer[], chance: number) => {
+      for (const player of arr) {
+        if (Math.random() < chance) pool.push({ player, clubId });
       }
-    }
+    };
+    pick(top, 0.18);
+    pick(mid, 0.4);
+    pick(fringe, 0.55);
   }
 
   const shuffled = pool.sort(() => Math.random() - 0.5).slice(0, n);
