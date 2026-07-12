@@ -118,7 +118,6 @@ export function MatchLiveOverlay({
   const [style, setStyle] = useState<TacticStyle>(tactics.style);
   const [boardOpen, setBoardOpen] = useState(false);
   const [finished, setFinished] = useState(false);
-  const [momentum, setMomentum] = useState(0);
   const [xi, setXi] = useState<string[]>(() => starters.slice(0, 11));
   const [dots, setDots] = useState<Dot[]>(() =>
     buildDots(match, clubId, squad, starters, tactics.formation, oppSquad),
@@ -165,7 +164,6 @@ export function MatchLiveOverlay({
     setFeed([]);
     setBoardOpen(false);
     setFinished(false);
-    setMomentum(0);
     setSubOutId(null);
 
     const id = window.setInterval(() => {
@@ -268,7 +266,6 @@ export function MatchLiveOverlay({
         return { ...d, base, xy: { ...base } };
       });
     });
-    setMomentum((m) => m + 0.12);
     setFeed((prev) =>
       [`${minute}' · ${tr("mgr.live.changedFormation", { f })}`, ...prev].slice(
         0,
@@ -279,10 +276,6 @@ export function MatchLiveOverlay({
 
   const applyStyle = (s: TacticStyle) => {
     setStyle(s);
-    const losing = userHome ? homeGoals < awayGoals : awayGoals < homeGoals;
-    setMomentum(
-      (m) => m + (s === "pressing" && losing ? 0.22 : 0.1),
-    );
     setFeed((f) =>
       [
         `${minute}' · ${tr("mgr.live.changedStyle", { s: tr(`mgr.style.${s}`) })}`,
@@ -310,7 +303,6 @@ export function MatchLiveOverlay({
           : d,
       ),
     );
-    setMomentum((m) => m + 0.28);
     setFeed((f) =>
       [
         `${minute}' · ${tr("mgr.live.subDone", {
