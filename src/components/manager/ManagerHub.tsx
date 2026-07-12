@@ -329,24 +329,26 @@ export function ManagerHub() {
 
       {/* Header strip — all key data */}
       <header
-        className="flex flex-wrap items-center gap-3 border border-white/10 bg-black/30 px-3 py-2.5"
+        className="flex flex-col gap-2 border border-white/10 bg-black/30 px-2.5 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:px-3 sm:py-2.5"
         style={{
           borderLeftColor: club?.colors.primary,
           borderLeftWidth: 4,
         }}
       >
-        {club && <ClubCrest club={club} size={40} />}
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-lg uppercase text-white sm:text-xl">
-            {career.clubName}
-          </p>
-          <p className="truncate font-mono text-[9px] uppercase text-white/45">
-            {career.coachName} · {tr(league.nameKey)} ·{" "}
-            {tr("mgr.season", { n: career.season })} · #
-            {myPos || "—"} · {tr(`mgr.goal.${career.boardGoal}`)}
-          </p>
+        <div className="flex min-w-0 items-center gap-2.5">
+          {club && <ClubCrest club={club} size={36} />}
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-base uppercase text-white sm:text-xl">
+              {career.clubName}
+            </p>
+            <p className="truncate font-mono text-[8px] uppercase text-white/45 sm:text-[9px]">
+              {career.coachName} · {tr(league.nameKey)} ·{" "}
+              {tr("mgr.season", { n: career.season })} · #
+              {myPos || "—"} · {tr(`mgr.goal.${career.boardGoal}`)}
+            </p>
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-x-3 gap-y-1 font-mono text-[10px] text-white/70 sm:grid-cols-6">
+        <div className="grid grid-cols-3 gap-x-2 gap-y-1 font-mono text-[10px] text-white/70 sm:ml-auto sm:grid-cols-6 sm:gap-x-3">
           <span>
             <span className="text-white/35">OVR </span>
             <span className="font-display text-arena-accent">

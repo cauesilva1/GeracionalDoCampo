@@ -30,7 +30,7 @@ export function InfoShell({
         >
           ← {t(locale, "nav.home")}
         </Link>
-        <h1 className="mt-4 font-display text-4xl uppercase tracking-wide text-white sm:text-5xl">
+        <h1 className="mt-4 font-display text-3xl uppercase tracking-wide text-white sm:text-5xl">
           {title}
         </h1>
         <div className="mt-8 space-y-6 text-left">{children}</div>

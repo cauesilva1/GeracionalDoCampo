@@ -5,6 +5,7 @@ import {
   useManagerActions,
   useManagerState,
 } from "@/hooks/useManagerGame";
+import { coachLegacyTheme } from "@/lib/manager/coachTheme";
 import { emptyTrophyCabinet } from "@/lib/manager/legacy";
 import { LEAGUES } from "@/lib/manager/clubs";
 
@@ -15,6 +16,7 @@ export function ManagerLegacy() {
   const cabinet = career.trophyCabinet ?? emptyTrophyCabinet();
   const ovr = Math.round(career.ovr ?? career.reputation ?? 50);
   const tier = career.legacyTier ?? "prospect";
+  const theme = coachLegacyTheme(tier);
 
   const stats: [string, number][] = [
     [tr("mgr.ovr"), ovr],
@@ -29,11 +31,11 @@ export function ManagerLegacy() {
   ];
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-12 text-center">
+    <div className="mx-auto max-w-lg px-4 py-8 text-center sm:py-12">
       <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-arena-accent">
         {tr("mgr.legacy.eyebrow")}
       </p>
-      <h2 className="mt-2 font-display text-4xl uppercase text-white">
+      <h2 className="mt-2 font-display text-3xl uppercase text-white sm:text-4xl">
         {tr("mgr.legacy.title")}
       </h2>
       <p className="mt-2 text-sm text-white/55">
@@ -42,18 +44,30 @@ export function ManagerLegacy() {
           : tr("mgr.legacy.fired")}
       </p>
 
-      <div className="mt-6 rounded-sm border border-arena-accent/40 bg-arena-accent/10 px-4 py-5">
+      <div
+        className="mt-6 rounded-sm border px-4 py-5"
+        style={{
+          borderColor: `${theme.accent}66`,
+          background: `linear-gradient(160deg, ${theme.bg1}, ${theme.bg0})`,
+          boxShadow: `0 0 28px ${theme.glow}`,
+        }}
+      >
         <p className="font-display text-2xl text-white">{career.coachName}</p>
         <p className="mt-1 font-mono text-[10px] uppercase text-white/50">
           {tr(`mgr.country.${career.country}`)} ·{" "}
           {tr(`mgr.origin.${career.origin ?? "assistant"}`)} ·{" "}
           {tr(`mgr.philosophy.${career.philosophy ?? "balanced"}`)}
         </p>
-        <p className="mt-4 font-display text-6xl text-arena-accent">{ovr}</p>
+        <p
+          className={`mt-4 font-display text-5xl sm:text-6xl ${theme.ovrClass}`}
+          style={{ textShadow: `0 0 24px ${theme.glow}` }}
+        >
+          {ovr}
+        </p>
         <p className="font-mono text-[10px] uppercase text-white/45">
           {tr("mgr.ovr")}
         </p>
-        <p className="mt-2 font-display text-lg uppercase text-white">
+        <p className={`mt-2 font-display text-lg uppercase ${theme.titleClass}`}>
           {tr(`mgr.legacy.tier.${tier}`)}
         </p>
         <p className="mt-1 text-xs text-white/50">
@@ -76,7 +90,7 @@ export function ManagerLegacy() {
         ))}
       </div>
 
-      <Button className="mt-8" onClick={restart}>
+      <Button className="mt-8 w-full sm:w-auto" onClick={restart}>
         {tr("mgr.restart")}
       </Button>
     </div>

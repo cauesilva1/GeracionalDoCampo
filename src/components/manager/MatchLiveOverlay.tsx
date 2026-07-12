@@ -19,8 +19,11 @@ import type {
 
 type Tr = (key: string, vars?: Record<string, string | number>) => string;
 
-const TICK_MS = 70;
+/** ~14s to 90' — readable pace */
+const TICK_MS = 155;
 const MAX_MIN = 90;
+/** Move dots every N minutes, gently */
+const MOVE_EVERY = 3;
 
 type Dot = {
   id: string;
@@ -32,17 +35,6 @@ type Dot = {
   fatigue: number;
   rating: number;
   ovr: number;
-};
-
-type DecisionKind = "sub" | "formation" | "style" | "push";
-
-type Decision = {
-  id: string;
-  kind: DecisionKind;
-  titleKey: string;
-  bodyKey: string;
-  name?: string;
-  outId?: string;
 };
 
 function buildDots(
@@ -124,25 +116,30 @@ export function MatchLiveOverlay({
   const [feed, setFeed] = useState<string[]>([]);
   const [formation, setFormation] = useState<FormationId>(tactics.formation);
   const [style, setStyle] = useState<TacticStyle>(tactics.style);
-  const [paused, setPaused] = useState(false);
-  const [decision, setDecision] = useState<Decision | null>(null);
+  const [boardOpen, setBoardOpen] = useState(false);
+  const [finished, setFinished] = useState(false);
   const [momentum, setMomentum] = useState(0);
   const [xi, setXi] = useState<string[]>(() => starters.slice(0, 11));
   const [dots, setDots] = useState<Dot[]>(() =>
     buildDots(match, clubId, squad, starters, tactics.formation, oppSquad),
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
+  const [subOutId, setSubOutId] = useState<string | null>(null);
   const [scoreMod, setScoreMod] = useState<"none" | "extra" | "drop">("none");
 
-  const doneRef = useRef(false);
+  const clockStopRef = useRef(false);
   const appliedRef = useRef(new Set<number>());
-  const decisionsFired = useRef(new Set<string>());
   const pausedRef = useRef(false);
 
   const home = getClub(match.homeId);
   const away = getClub(match.awayId);
   const userHome = match.homeId === clubId;
+  const userColor = userHome
+    ? (home?.colors.primary ?? "#e8c547")
+    : (away?.colors.primary ?? "#e8c547");
+  const oppColor = userHome
+    ? (away?.colors.primary ?? "#7dd3fc")
+    : (home?.colors.primary ?? "#7dd3fc");
 
   const goals = useMemo(() => {
     let base = match.events.filter((e) => e.kind === "goal");
@@ -167,7 +164,7 @@ export function MatchLiveOverlay({
     return base;
   }, [match.events, clubId, tr, scoreMod]);
 
-  const finalHome = useMemo(() => {
+  const finalScore = useMemo(() => {
     let h = 0;
     let a = 0;
     for (const g of goals) {
@@ -181,57 +178,62 @@ export function MatchLiveOverlay({
   }, [goals, match.homeId, match.homeGoals, match.awayGoals]);
 
   useEffect(() => {
-    pausedRef.current = paused || !!decision;
-  }, [paused, decision]);
+    pausedRef.current = boardOpen || finished;
+  }, [boardOpen, finished]);
 
   // Clock
   useEffect(() => {
-    doneRef.current = false;
+    clockStopRef.current = false;
     appliedRef.current = new Set();
-    decisionsFired.current = new Set();
     setMinute(0);
     setHomeGoals(0);
     setAwayGoals(0);
     setFeed([]);
-    setPaused(false);
-    setDecision(null);
+    setBoardOpen(false);
+    setFinished(false);
     setMomentum(0);
     setScoreMod("none");
+    setSubOutId(null);
 
     const id = window.setInterval(() => {
-      if (pausedRef.current || doneRef.current) return;
-      setMinute((m) => (m >= MAX_MIN ? MAX_MIN : m + 1));
+      if (pausedRef.current || clockStopRef.current) return;
+      setMinute((m) => {
+        if (m >= MAX_MIN) return MAX_MIN;
+        return m + 1;
+      });
     }, TICK_MS);
 
     return () => window.clearInterval(id);
   }, [match.fixtureId]);
 
-  // Animate dots + fatigue each minute
+  // Gentle movement + fatigue
   useEffect(() => {
-    if (paused || decision || minute <= 0) return;
+    if (boardOpen || finished || minute <= 0) return;
 
     setDots((prev) =>
       prev.map((d) => {
-        const press = style === "pressing" ? 0.55 : style === "direct" ? 0.35 : 0.28;
+        const press =
+          style === "pressing" ? 0.35 : style === "direct" ? 0.22 : 0.16;
         const fatigue = Math.max(
-          18,
-          d.fatigue - (d.user ? press : 0.22) - (minute > 70 ? 0.15 : 0),
+          22,
+          d.fatigue - (d.user ? press : 0.12) - (minute > 70 ? 0.08 : 0),
         );
         let rating = d.rating;
-        if (fatigue < 45 && d.user) rating -= 0.03;
-        if (fatigue > 70 && d.user && Math.random() < 0.08) rating += 0.05;
-        const amp = fatigue < 40 ? 1.1 : 2.4;
+        if (fatigue < 45 && d.user) rating -= 0.02;
+        if (fatigue > 70 && d.user && minute % 10 === 0) rating += 0.04;
+
+        const shouldMove = minute % MOVE_EVERY === 0;
         return {
           ...d,
           fatigue,
           rating: Math.max(4.5, Math.min(9.8, rating)),
-          xy: jitter(d.base, amp),
+          xy: shouldMove ? jitter(d.base, fatigue < 40 ? 0.6 : 1.1) : d.xy,
         };
       }),
     );
-  }, [minute, paused, decision, style]);
+  }, [minute, boardOpen, finished, style]);
 
-  // Goals + decisions + end
+  // Goals + full time
   useEffect(() => {
     for (let i = 0; i < goals.length; i++) {
       const g = goals[i]!;
@@ -243,7 +245,6 @@ export function MatchLiveOverlay({
       setFeed((f) =>
         [`${g.minute}' · ${tr("mgr.event.goal")} · ${scorer}`, ...f].slice(0, 5),
       );
-      // Boost rating of a random user attacker on our goal
       if (g.clubId === clubId) {
         setDots((prev) => {
           const users = prev.filter((d) => d.user);
@@ -251,101 +252,36 @@ export function MatchLiveOverlay({
           if (!pick) return prev;
           return prev.map((d) =>
             d.id === pick.id
-              ? { ...d, rating: Math.min(9.9, d.rating + 0.6) }
+              ? { ...d, rating: Math.min(9.9, d.rating + 0.55) }
               : d,
           );
         });
       }
     }
 
-    // Spawn tactical decision cards
-    const tryDecision = (key: string, d: Decision) => {
-      if (decisionsFired.current.has(key)) return;
-      decisionsFired.current.add(key);
-      setDecision(d);
-      setPaused(true);
-    };
-
-    const ug = userHome ? homeGoals : awayGoals;
-    const og = userHome ? awayGoals : homeGoals;
-    const losing = ug < og;
-    const drawing = ug === og;
-
-    if (minute === 28 && important) {
-      tryDecision("form28", {
-        id: "form28",
-        kind: "formation",
-        titleKey: "mgr.live.dec.formation.title",
-        bodyKey: "mgr.live.dec.formation.body",
-      });
-    }
-
-    if (minute === 55 && (important || losing)) {
-      tryDecision("style55", {
-        id: "style55",
-        kind: "style",
-        titleKey: "mgr.live.dec.style.title",
-        bodyKey: losing
-          ? "mgr.live.dec.style.bodyLose"
-          : "mgr.live.dec.style.body",
-      });
-    }
-
-    if (minute === 62 || minute === 75) {
-      const tired = dots
-        .filter((d) => d.user)
-        .sort((a, b) => a.fatigue - b.fatigue)[0];
-      if (tired && tired.fatigue < 52 && (important || losing || drawing)) {
-        tryDecision(`sub-${minute}`, {
-          id: `sub-${minute}`,
-          kind: "sub",
-          titleKey: "mgr.live.dec.sub.title",
-          bodyKey: "mgr.live.dec.sub.body",
-          name: tired.name,
-          outId: tired.id,
-        });
-      }
-    }
-
-    if (minute === 70 && important && (losing || drawing)) {
-      tryDecision("push70", {
-        id: "push70",
-        kind: "push",
-        titleKey: "mgr.live.dec.push.title",
-        bodyKey: "mgr.live.dec.push.body",
-      });
-    }
-
-    if (minute >= MAX_MIN && !doneRef.current && !decision) {
-      doneRef.current = true;
-      const h = finalHome.h;
-      const a = finalHome.a;
-      setHomeGoals(h);
-      setAwayGoals(a);
-      const t = window.setTimeout(() => {
-        const changed =
-          h !== match.homeGoals || a !== match.awayGoals
-            ? { homeGoals: h, awayGoals: a }
-            : undefined;
-        onDone(changed);
-      }, 1100);
-      return () => window.clearTimeout(t);
+    if (minute >= MAX_MIN && !finished) {
+      clockStopRef.current = true;
+      setHomeGoals(finalScore.h);
+      setAwayGoals(finalScore.a);
+      setFinished(true);
+      setBoardOpen(false);
     }
   }, [
     minute,
     goals,
-    match,
-    onDone,
+    match.homeId,
     tr,
-    important,
-    userHome,
-    homeGoals,
-    awayGoals,
-    dots,
-    decision,
     clubId,
-    finalHome,
+    finished,
+    finalScore.h,
+    finalScore.a,
   ]);
+
+  useEffect(() => {
+    if (scoreMod !== "none") return;
+    if (momentum >= 0.4) setScoreMod("extra");
+    else if (momentum <= -0.25) setScoreMod("drop");
+  }, [momentum, scoreMod]);
 
   const applyFormation = (f: FormationId) => {
     setFormation(f);
@@ -366,195 +302,217 @@ export function MatchLiveOverlay({
     });
     setMomentum((m) => m + 0.12);
     setFeed((prev) =>
-      [`${minute}' · ${tr("mgr.live.changedFormation", { f })}`, ...prev].slice(0, 5),
+      [`${minute}' · ${tr("mgr.live.changedFormation", { f })}`, ...prev].slice(
+        0,
+        5,
+      ),
     );
   };
 
-  const resolveDecision = (choice: string) => {
-    if (!decision) return;
-
-    if (decision.kind === "formation") {
-      if (choice === "433" || choice === "442" || choice === "352" || choice === "4231") {
-        applyFormation(choice);
-      } else if (choice === "keep") {
-        setMomentum((m) => m + 0.02);
-      }
-    }
-
-    if (decision.kind === "style") {
-      if (choice === "pressing" || choice === "direct" || choice === "possession") {
-        setStyle(choice);
-        setMomentum((m) => m + (choice === "pressing" && (userHome ? homeGoals < awayGoals : awayGoals < homeGoals) ? 0.22 : 0.1));
-        setFeed((f) =>
-          [`${minute}' · ${tr("mgr.live.changedStyle", { s: tr(`mgr.style.${choice}`) })}`, ...f].slice(
-            0,
-            5,
-          ),
-        );
-      }
-    }
-
-    if (decision.kind === "sub" && decision.outId) {
-      if (choice === "sub") {
-        const outId = decision.outId;
-        const benchIds = bench.filter((id) => !xi.includes(id));
-        const fresh = benchIds
-          .map((id) => squad.find((p) => p.id === id))
-          .filter(Boolean)
-          .sort((a, b) => (b!.fitness + b!.ovr) - (a!.fitness + a!.ovr))[0];
-        if (fresh) {
-          setXi((prev) => prev.map((id) => (id === outId ? fresh.id : id)));
-          setDots((prev) =>
-            prev.map((d) =>
-              d.id === outId
-                ? {
-                    ...d,
-                    id: fresh.id,
-                    name: fresh.name,
-                    fatigue: Math.min(100, fresh.fitness + 8),
-                    rating: 6.3,
-                    ovr: fresh.ovr,
-                  }
-                : d,
-            ),
-          );
-          setMomentum((m) => m + 0.28);
-          setFeed((f) =>
-            [
-              `${minute}' · ${tr("mgr.live.subDone", {
-                out: decision.name ?? "",
-                inn: fresh.name,
-              })}`,
-              ...f,
-            ].slice(0, 5),
-          );
-        }
-      } else {
-        setMomentum((m) => m - 0.08);
-      }
-    }
-
-    if (decision.kind === "push") {
-      if (choice === "allin") {
-        setStyle("pressing");
-        setMomentum((m) => m + 0.35);
-        setFeed((f) => [`${minute}' · ${tr("mgr.live.allIn")}`, ...f].slice(0, 5));
-      } else if (choice === "hold") {
-        setStyle("possession");
-        setMomentum((m) => m + 0.05);
-      }
-    }
-
-    setDecision(null);
-    setPaused(false);
+  const applyStyle = (s: TacticStyle) => {
+    setStyle(s);
+    const losing = userHome ? homeGoals < awayGoals : awayGoals < homeGoals;
+    setMomentum(
+      (m) => m + (s === "pressing" && losing ? 0.22 : 0.1),
+    );
+    setFeed((f) =>
+      [
+        `${minute}' · ${tr("mgr.live.changedStyle", { s: tr(`mgr.style.${s}`) })}`,
+        ...f,
+      ].slice(0, 5),
+    );
   };
 
-  // Promote good tactics into a late goal / punish bad ones
-  useEffect(() => {
-    if (scoreMod !== "none") return;
-    if (momentum >= 0.4) setScoreMod("extra");
-    else if (momentum <= -0.25) setScoreMod("drop");
-  }, [momentum, scoreMod]);
+  const applySub = (outId: string, inId: string) => {
+    const fresh = squad.find((p) => p.id === inId);
+    const outDot = dots.find((d) => d.id === outId);
+    if (!fresh || !outDot) return;
+    setXi((prev) => prev.map((id) => (id === outId ? fresh.id : id)));
+    setDots((prev) =>
+      prev.map((d) =>
+        d.id === outId
+          ? {
+              ...d,
+              id: fresh.id,
+              name: fresh.name,
+              fatigue: Math.min(100, fresh.fitness + 8),
+              rating: 6.3,
+              ovr: fresh.ovr,
+            }
+          : d,
+      ),
+    );
+    setMomentum((m) => m + 0.28);
+    setFeed((f) =>
+      [
+        `${minute}' · ${tr("mgr.live.subDone", {
+          out: outDot.name,
+          inn: fresh.name,
+        })}`,
+        ...f,
+      ].slice(0, 5),
+    );
+    setSubOutId(null);
+    setSelectedId(fresh.id);
+  };
 
-  const skip = () => {
-    if (doneRef.current) return;
-    doneRef.current = true;
-    setDecision(null);
-    setPaused(false);
-    const h = finalHome.h;
-    const a = finalHome.a;
+  const jumpToEnd = () => {
+    clockStopRef.current = true;
     setMinute(MAX_MIN);
-    setHomeGoals(h);
-    setAwayGoals(a);
+    setHomeGoals(finalScore.h);
+    setAwayGoals(finalScore.a);
+    setBoardOpen(false);
+    setFinished(true);
+  };
+
+  const confirmFinish = () => {
     const changed =
-      h !== match.homeGoals || a !== match.awayGoals
-        ? { homeGoals: h, awayGoals: a }
+      finalScore.h !== match.homeGoals || finalScore.a !== match.awayGoals
+        ? { homeGoals: finalScore.h, awayGoals: finalScore.a }
         : undefined;
     onDone(changed);
   };
 
-  const userDots = dots.filter((d) => d.user).sort((a, b) => b.rating - a.rating);
+  const openBoard = () => {
+    if (finished) return;
+    setBoardOpen(true);
+  };
+
+  const closeBoard = () => {
+    setBoardOpen(false);
+    setSubOutId(null);
+  };
+
+  const userDots = dots
+    .filter((d) => d.user)
+    .sort((a, b) => b.rating - a.rating);
+  const benchPlayers = squad.filter(
+    (p) => !xi.includes(p.id) && p.injuredWeeks <= 0,
+  );
   const selected = dots.find((d) => d.id === selectedId);
   const ug = userHome ? homeGoals : awayGoals;
   const og = userHome ? awayGoals : homeGoals;
 
   return (
-    <div className="absolute inset-0 z-30 flex items-stretch justify-center overflow-y-auto bg-arena-bg/95 px-2 py-3 backdrop-blur-md sm:px-4 sm:py-6">
-      <div className="flex w-full max-w-5xl flex-col gap-3 lg:flex-row">
-        {/* Pitch column */}
+    <div className="absolute inset-0 z-30 flex items-stretch justify-center overflow-y-auto bg-arena-bg/96 px-2 py-2 backdrop-blur-md sm:px-4 sm:py-5">
+      <div className="flex w-full max-w-4xl flex-col gap-3 lg:flex-row lg:items-start">
+        {/* Pitch */}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2 border border-white/10 bg-black/40 px-3 py-2">
-            <p className="truncate font-display text-sm uppercase text-white sm:text-base">
+          <div className="flex items-center justify-between gap-2 rounded-sm border border-white/10 bg-black/50 px-2.5 py-2">
+            <p className="min-w-0 truncate font-display text-sm uppercase text-white sm:text-base">
               {home?.shortName}{" "}
               <span className="text-arena-accent">
                 {homeGoals}–{awayGoals}
               </span>{" "}
               {away?.shortName}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               {important && (
                 <span className="font-mono text-[8px] uppercase tracking-wider text-arena-buzzer">
                   {tr("mgr.live.important")}
                 </span>
               )}
-              <span className="font-mono text-xl tabular-nums text-arena-accent">
-                {minute}&apos;
+              <span className="font-mono text-lg tabular-nums text-arena-accent sm:text-xl">
+                {finished ? "FT" : `${minute}'`}
               </span>
             </div>
           </div>
 
-          <div
-            className="relative mt-2 aspect-[68/105] w-full overflow-hidden border border-white/15"
-            style={{
-              background:
-                "linear-gradient(180deg, #1a5c2e 0%, #147a38 50%, #1a5c2e 100%)",
-            }}
-          >
-            {/* Pitch markings */}
-            <div className="pointer-events-none absolute inset-[3%] border border-white/35">
-              <div className="absolute left-0 right-0 top-1/2 h-px bg-white/35" />
-              <div className="absolute left-1/2 top-1/2 h-[18%] w-[28%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/35" />
-              <div className="absolute left-[20%] right-[20%] top-0 h-[14%] border border-t-0 border-white/35" />
-              <div className="absolute bottom-0 left-[20%] right-[20%] h-[14%] border border-b-0 border-white/35" />
-            </div>
-
-            {dots.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                title={`${d.name} · ${d.rating.toFixed(1)} · fadiga ${Math.round(d.fatigue)}`}
-                onClick={() => d.user && setSelectedId(d.id)}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border transition-[left,top] duration-300 ease-out ${
-                  d.user
-                    ? selectedId === d.id
-                      ? "z-10 h-4 w-4 border-white bg-arena-accent shadow-[0_0_10px_rgba(255,200,60,0.7)]"
-                      : "h-3 w-3 border-white/80 bg-arena-accent"
-                    : "h-2.5 w-2.5 border-white/40 bg-sky-300/90"
-                }`}
+          <div className="mx-auto mt-2 w-full max-w-[280px] sm:max-w-[320px]">
+            <div
+              className="relative aspect-[68/105] overflow-hidden rounded-md shadow-[0_12px_40px_rgba(0,0,0,0.55)] ring-1 ring-white/20"
+              style={{
+                background: `
+                  repeating-linear-gradient(
+                    90deg,
+                    #1f6b38 0px,
+                    #1f6b38 18px,
+                    #246f3d 18px,
+                    #246f3d 36px
+                  )
+                `,
+              }}
+            >
+              {/* Soft vignette */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
                 style={{
-                  left: `${d.xy.x}%`,
-                  top: `${100 - d.xy.y}%`,
-                  opacity: d.fatigue < 40 ? 0.55 : 1,
+                  background:
+                    "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.35) 100%)",
                 }}
               />
-            ))}
-          </div>
 
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full bg-arena-accent transition-[width] duration-75 ease-linear"
-              style={{ width: `${(minute / MAX_MIN) * 100}%` }}
-            />
+              {/* Markings */}
+              <div className="pointer-events-none absolute inset-[4.5%] border border-white/55">
+                <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-white/55" />
+                <div className="absolute left-1/2 top-1/2 h-[16%] w-[42%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/55" />
+                <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70" />
+                {/* Top box */}
+                <div className="absolute left-[18%] right-[18%] top-0 h-[12%] border border-t-0 border-white/55" />
+                <div className="absolute left-[32%] right-[32%] top-0 h-[5%] border border-t-0 border-white/45" />
+                {/* Bottom box */}
+                <div className="absolute bottom-0 left-[18%] right-[18%] h-[12%] border border-b-0 border-white/55" />
+                <div className="absolute bottom-0 left-[32%] right-[32%] h-[5%] border border-b-0 border-white/45" />
+              </div>
+
+              {dots.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  title={`${d.name} · ${d.rating.toFixed(1)}`}
+                  onClick={() => d.user && setSelectedId(d.id)}
+                  className={`absolute z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-[left,top,transform] duration-700 ease-in-out ${
+                    selectedId === d.id ? "z-10 scale-125" : ""
+                  }`}
+                  style={{
+                    left: `${d.xy.x}%`,
+                    top: `${100 - d.xy.y}%`,
+                    width: d.user ? 11 : 9,
+                    height: d.user ? 11 : 9,
+                    backgroundColor: d.user ? userColor : oppColor,
+                    borderColor: selectedId === d.id ? "#fff" : "rgba(255,255,255,0.75)",
+                    opacity: d.fatigue < 40 ? 0.55 : 0.95,
+                    boxShadow: d.user
+                      ? "0 0 0 1px rgba(0,0,0,0.35)"
+                      : "0 0 0 1px rgba(0,0,0,0.25)",
+                  }}
+                />
+              ))}
+
+              {finished && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
+                  <div className="mx-3 rounded-sm border border-arena-accent/50 bg-arena-panel/95 px-5 py-4 text-center">
+                    <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-arena-accent">
+                      {tr("mgr.live.fullTime")}
+                    </p>
+                    <p className="mt-1 font-display text-2xl text-white">
+                      {homeGoals}–{awayGoals}
+                    </p>
+                    <Button className="mt-3 w-full" onClick={confirmFinish}>
+                      {tr("mgr.live.finish")}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full bg-arena-accent transition-[width] duration-150 ease-linear"
+                style={{ width: `${(minute / MAX_MIN) * 100}%` }}
+              />
+            </div>
           </div>
         </div>
 
         {/* Side panel */}
-        <div className="flex w-full flex-col gap-2 lg:w-72">
-          <div className="border border-white/10 bg-black/35 p-2.5">
+        <div className="flex w-full flex-col gap-2 pb-6 lg:w-72 lg:shrink-0 lg:pb-0">
+          <div className="rounded-sm border border-white/10 bg-black/40 p-2.5">
             <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/40">
               {tr("mgr.live.onPitch")}
             </p>
-            <ul className="mt-1.5 max-h-48 space-y-1 overflow-y-auto">
+            <ul className="mt-1.5 max-h-40 space-y-1 overflow-y-auto sm:max-h-48">
               {userDots.map((d) => (
                 <li key={d.id}>
                   <button
@@ -596,13 +554,15 @@ export function MatchLiveOverlay({
             )}
           </div>
 
-          <div className="border border-white/10 bg-black/35 p-2.5">
+          <div className="rounded-sm border border-white/10 bg-black/40 p-2.5">
             <p className="font-mono text-[9px] uppercase text-white/40">
               {tr("mgr.live.feed")}
             </p>
-            <ul className="mt-1 min-h-[4rem] space-y-1">
+            <ul className="mt-1 min-h-[3.5rem] space-y-1">
               {feed.length === 0 && (
-                <li className="text-[11px] text-white/35">{tr("mgr.live.kickoff")}</li>
+                <li className="text-[11px] text-white/35">
+                  {tr("mgr.live.kickoff")}
+                </li>
               )}
               {feed.map((line, i) => (
                 <li
@@ -618,83 +578,139 @@ export function MatchLiveOverlay({
             </p>
           </div>
 
-          <Button variant="ghost" className="w-full !py-1.5 text-[11px]" onClick={skip}>
-            {tr("mgr.live.skip")}
-          </Button>
+          {!finished ? (
+            <div className="flex flex-col gap-1.5">
+              <Button className="w-full !py-2 text-[12px]" onClick={openBoard}>
+                {tr("mgr.live.tacticsBtn")}
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full !py-1.5 text-[11px]"
+                onClick={jumpToEnd}
+              >
+                {tr("mgr.live.skip")}
+              </Button>
+            </div>
+          ) : (
+            <Button className="w-full !py-2.5" onClick={confirmFinish}>
+              {tr("mgr.live.finish")}
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Decision card */}
-      {decision && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md border border-arena-accent/50 bg-arena-panel p-5 shadow-2xl">
-            <p className="font-mono text-[9px] uppercase tracking-[0.22em] text-arena-accent">
-              {tr("mgr.live.dec.badge")} · {minute}&apos;
-            </p>
-            <h3 className="mt-1 font-display text-2xl uppercase text-white">
-              {tr(decision.titleKey)}
-            </h3>
-            <p className="mt-2 text-sm text-white/65">
-              {tr(decision.bodyKey, { name: decision.name ?? "" })}
-            </p>
+      {/* Manual tactics board */}
+      {boardOpen && !finished && (
+        <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/60 px-3 pb-4 pt-10 backdrop-blur-sm sm:items-center sm:pb-0">
+          <div className="w-full max-w-md rounded-sm border border-arena-accent/45 bg-arena-panel p-4 shadow-2xl sm:p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-arena-accent">
+                  {tr("mgr.live.dec.badge")} · {minute}&apos;
+                </p>
+                <h3 className="mt-0.5 font-display text-xl uppercase text-white">
+                  {tr("mgr.live.board.title")}
+                </h3>
+              </div>
+              <Button
+                variant="ghost"
+                className="!px-2 !py-1 text-[10px]"
+                onClick={closeBoard}
+              >
+                {tr("mgr.live.resume")}
+              </Button>
+            </div>
 
-            <div className="mt-4 flex flex-col gap-2">
-              {decision.kind === "formation" && (
-                <>
-                  {(["433", "442", "352", "4231"] as FormationId[]).map((f) => (
-                    <Button key={f} className="w-full" onClick={() => resolveDecision(f)}>
-                      {f === "433"
-                        ? "4-3-3"
-                        : f === "442"
-                          ? "4-4-2"
-                          : f === "352"
-                            ? "3-5-2"
-                            : "4-2-3-1"}
-                    </Button>
-                  ))}
-                  <Button variant="ghost" className="w-full" onClick={() => resolveDecision("keep")}>
-                    {tr("mgr.live.dec.keep")}
-                  </Button>
-                </>
-              )}
-              {decision.kind === "style" && (
-                <>
-                  {(["pressing", "direct", "possession"] as TacticStyle[]).map((s) => (
-                    <Button key={s} className="w-full" onClick={() => resolveDecision(s)}>
-                      {tr(`mgr.style.${s}`)}
-                    </Button>
-                  ))}
-                </>
-              )}
-              {decision.kind === "sub" && (
-                <>
-                  <Button className="w-full" onClick={() => resolveDecision("sub")}>
-                    {tr("mgr.live.dec.sub.yes", { name: decision.name ?? "" })}
-                  </Button>
+            <p className="mt-3 font-mono text-[9px] uppercase text-white/40">
+              {tr("mgr.formation")}
+            </p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {(["433", "442", "352", "4231"] as FormationId[]).map((f) => (
+                <Button
+                  key={f}
+                  variant={formation === f ? "chipActive" : "chip"}
+                  className="!px-2 !py-1 text-[10px]"
+                  onClick={() => applyFormation(f)}
+                >
+                  {f === "433"
+                    ? "4-3-3"
+                    : f === "442"
+                      ? "4-4-2"
+                      : f === "352"
+                        ? "3-5-2"
+                        : "4-2-3-1"}
+                </Button>
+              ))}
+            </div>
+
+            <p className="mt-3 font-mono text-[9px] uppercase text-white/40">
+              {tr("mgr.style")}
+            </p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {(["possession", "direct", "pressing"] as TacticStyle[]).map(
+                (s) => (
                   <Button
-                    variant="ghost"
-                    className="w-full"
-                    onClick={() => resolveDecision("hold")}
+                    key={s}
+                    variant={style === s ? "chipActive" : "chip"}
+                    className="!px-2 !py-1 text-[10px]"
+                    onClick={() => applyStyle(s)}
                   >
-                    {tr("mgr.live.dec.sub.no")}
+                    {tr(`mgr.style.${s}`)}
                   </Button>
-                </>
-              )}
-              {decision.kind === "push" && (
-                <>
-                  <Button className="w-full" onClick={() => resolveDecision("allin")}>
-                    {tr("mgr.live.dec.push.yes")}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full"
-                    onClick={() => resolveDecision("hold")}
-                  >
-                    {tr("mgr.live.dec.push.no")}
-                  </Button>
-                </>
+                ),
               )}
             </div>
+
+            <p className="mt-3 font-mono text-[9px] uppercase text-white/40">
+              {tr("mgr.live.makeSub")}
+            </p>
+            <p className="mt-0.5 text-[10px] text-white/45">
+              {tr("mgr.live.subHint")}
+            </p>
+            <div className="mt-2 grid max-h-36 grid-cols-2 gap-2 overflow-y-auto">
+              <div>
+                <p className="mb-1 font-mono text-[8px] uppercase text-white/35">
+                  {tr("mgr.live.subOut")}
+                </p>
+                {userDots.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setSubOutId(d.id)}
+                    className={`mb-0.5 block w-full truncate px-1.5 py-1 text-left text-[10px] ${
+                      subOutId === d.id
+                        ? "bg-arena-buzzer/25 text-white"
+                        : "text-white/70 hover:bg-white/5"
+                    }`}
+                  >
+                    {d.name} · {Math.round(d.fatigue)}%
+                  </button>
+                ))}
+              </div>
+              <div>
+                <p className="mb-1 font-mono text-[8px] uppercase text-white/35">
+                  {tr("mgr.live.subIn")}
+                </p>
+                {benchPlayers.length === 0 && (
+                  <p className="text-[10px] text-white/35">—</p>
+                )}
+                {benchPlayers.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={!subOutId}
+                    onClick={() => subOutId && applySub(subOutId, p.id)}
+                    className="mb-0.5 block w-full truncate px-1.5 py-1 text-left text-[10px] text-white/70 hover:bg-white/5 disabled:opacity-30"
+                  >
+                    {p.name} · {p.ovr}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Button className="mt-4 w-full" onClick={closeBoard}>
+              {tr("mgr.live.resume")}
+            </Button>
           </div>
         </div>
       )}

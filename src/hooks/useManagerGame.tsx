@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -38,6 +39,7 @@ import {
   loadManagerState,
   saveManagerState,
 } from "@/lib/manager/persistence";
+import { archiveFromManagerState } from "@/lib/manager/pastRuns";
 import { t } from "@/lib/i18n/dictionary";
 import type { Locale } from "@/types/game";
 import type {
@@ -119,6 +121,19 @@ export function ManagerGameProvider({
     if (!hydrated) return;
     saveManagerState(state);
   }, [state, hydrated]);
+
+  // Archive finished careers once when landing on legacy
+  const archivedLegacyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!hydrated || state.phase !== "legacy" || !state.career) return;
+    const key = `${state.career.coachName}|${state.career.legacyScore}|${state.career.seasonsInCareer}|${state.career.endReason}`;
+    if (archivedLegacyRef.current === key) return;
+    archivedLegacyRef.current = key;
+    archiveFromManagerState(
+      state,
+      state.career.endReason === "retired" ? "retired" : "fired",
+    );
+  }, [hydrated, state]);
 
   const tr = useCallback<Tr>(
     (key, vars) => t(state.locale, key, vars),
@@ -263,8 +278,22 @@ export function ManagerGameProvider({
   }, []);
 
   const restart = useCallback(() => {
+    setState((s) => {
+      if (s.career && s.phase !== "setup") {
+        const reason =
+          s.phase === "legacy"
+            ? s.career.endReason === "retired"
+              ? "retired"
+              : "fired"
+            : "abandoned";
+        // Avoid double-archive if already on legacy (effect handled it)
+        if (s.phase !== "legacy") {
+          archiveFromManagerState(s, reason);
+        }
+      }
+      return createFreshManagerState(locale);
+    });
     clearManagerState();
-    setState(createFreshManagerState(locale));
   }, [locale]);
 
   const actions = useMemo<ManagerActions>(

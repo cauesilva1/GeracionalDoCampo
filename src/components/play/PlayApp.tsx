@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Volume2, VolumeX } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 import { ManagerHub } from "@/components/manager/ManagerHub";
 import { ManagerSetup } from "@/components/manager/ManagerSetup";
 import {
@@ -71,20 +72,23 @@ function PlayShell({ locale }: { locale: Locale }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-arena-bg text-brand-text">
-      <div className="flex items-center justify-between border-b border-white/10 px-3 py-2 sm:px-4">
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2 sm:px-4">
         <Link
           href={locale === "pt" ? "/" : `/${locale}`}
-          className="font-display text-sm uppercase tracking-wide text-white/80 hover:text-arena-accent"
+          className="flex min-w-0 items-center gap-2 font-display text-sm uppercase tracking-wide text-white/80 hover:text-arena-accent"
         >
-          {tr("brand.name")}
-          <span className="text-arena-accent">{tr("brand.domain")}</span>
+          <BrandLogo size={28} className="shrink-0" />
+          <span className="truncate">
+            {tr("brand.name")}
+            <span className="text-arena-accent">{tr("brand.domain")}</span>
+          </span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {state.phase !== "setup" && (
             <button
               type="button"
               onClick={restart}
-              className="cursor-pointer font-mono text-[10px] uppercase text-white/40 hover:text-white/70"
+              className="cursor-pointer font-mono text-[9px] uppercase text-white/40 hover:text-white/70 sm:text-[10px]"
             >
               {tr("mgr.restart")}
             </button>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { SiteHeader } from "@/components/landing/SiteHeader";
 import { SiteFooter } from "@/components/landing/SiteFooter";
+import { PastRunsSection } from "@/components/landing/PastRunsSection";
 import { playHref } from "@/lib/i18n";
 import { t } from "@/lib/i18n/dictionary";
 import {
@@ -15,12 +16,16 @@ import type { Locale } from "@/types/game";
 function CoachCardArt({
   accent,
   tier,
+  uid,
 }: {
   accent: string;
   tier: string;
+  uid: string;
 }) {
   const stars =
     tier === "legend" ? 3 : tier === "elite" ? 2 : tier === "contender" ? 1 : 0;
+  const turfId = `turf-${uid}`;
+  const glowId = `glow-${uid}`;
 
   return (
     <svg
@@ -30,20 +35,20 @@ function CoachCardArt({
       fill="none"
     >
       <defs>
-        <linearGradient id={`turf-${tier}`} x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={turfId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={accent} stopOpacity="0.08" />
           <stop offset="55%" stopColor={accent} stopOpacity="0.03" />
           <stop offset="100%" stopColor="#000" stopOpacity="0.35" />
         </linearGradient>
-        <linearGradient id={`glow-${tier}`} x1="0.5" y1="0" x2="0.5" y2="1">
+        <linearGradient id={glowId} x1="0.5" y1="0" x2="0.5" y2="1">
           <stop offset="0%" stopColor={accent} stopOpacity="0.45" />
           <stop offset="100%" stopColor={accent} stopOpacity="0" />
         </linearGradient>
       </defs>
 
       {/* Night stadium wash */}
-      <rect width="180" height="240" fill={`url(#turf-${tier})`} />
-      <ellipse cx="90" cy="0" rx="90" ry="70" fill={`url(#glow-${tier})`} />
+      <rect width="180" height="240" fill={`url(#${turfId})`} />
+      <ellipse cx="90" cy="0" rx="90" ry="70" fill={`url(#${glowId})`} />
 
       {/* Perspective pitch */}
       <g opacity="0.55" stroke={accent} strokeWidth="1.1">
@@ -190,7 +195,7 @@ function CoachTierCard({
 
   return (
     <article
-      className="group relative w-full overflow-hidden rounded-[18px] transition-transform duration-300 hover:-translate-y-1 sm:w-[190px]"
+      className="group relative w-full min-w-0 overflow-hidden rounded-xl transition-transform duration-300 hover:-translate-y-1"
       style={{
         boxShadow: `0 16px 36px rgba(0,0,0,0.5), 0 0 0 1px ${theme.accent}40, 0 0 28px ${theme.glow}`,
       }}
@@ -201,7 +206,7 @@ function CoachTierCard({
           background: `linear-gradient(175deg, ${theme.bg1} 0%, ${theme.bg0} 42%, #030a07 100%)`,
         }}
       >
-        <CoachCardArt accent={theme.accent} tier={tier} />
+        <CoachCardArt accent={theme.accent} tier={tier} uid={`${tier}-${ovr}`} />
 
         {/* Soft vignette so text stays readable */}
         <div
@@ -218,14 +223,15 @@ function CoachTierCard({
           style={{ background: theme.accent }}
         />
 
-        <div className="relative flex h-full flex-col px-3.5 pb-3.5 pt-3 text-left">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="font-sans text-[7px] font-medium uppercase tracking-[0.3em] text-white/40 sm:text-[8px]">
+        <div className="relative flex h-full flex-col px-2.5 pb-2.5 pt-2.5 text-left sm:px-3.5 sm:pb-3.5 sm:pt-3">
+          <div className="flex items-start justify-between gap-1.5">
+            <div className="min-w-0">
+              <p className="font-sans text-[7px] font-medium uppercase tracking-[0.24em] text-white/40 sm:text-[8px] sm:tracking-[0.3em]">
                 {t(locale, "hero.title2")}
               </p>
               <span
-                className={`mt-1.5 inline-block rounded-sm px-1.5 py-0.5 font-sans text-[7px] font-semibold uppercase tracking-[0.16em] sm:text-[8px] ${theme.ribbonClass}`}
+                className={`mt-1 inline-block rounded-sm px-1.5 py-0.5 font-sans text-[7px] font-semibold uppercase tracking-[0.14em] sm:mt-1.5 sm:text-[8px] sm:tracking-[0.16em] ${theme.ribbonClass}`}
+                style={{ boxShadow: `0 0 0 1px ${theme.accent}55` }}
               >
                 {isLegend
                   ? "MAX"
@@ -236,14 +242,10 @@ function CoachTierCard({
                       : "PATH"}
               </span>
             </div>
-            <div className="text-right">
+            <div className="shrink-0 text-right">
               <p
-                className={`font-display text-[40px] leading-none tracking-tight sm:text-[52px] ${theme.ovrClass}`}
-                style={
-                  isLegend
-                    ? { textShadow: `0 0 28px ${theme.glow}` }
-                    : { textShadow: `0 0 16px ${theme.glow}` }
-                }
+                className={`font-display text-[32px] leading-none tracking-tight sm:text-[52px] ${theme.ovrClass}`}
+                style={{ textShadow: `0 0 ${isLegend ? 28 : 16}px ${theme.glow}` }}
               >
                 {ovr}
               </p>
@@ -253,17 +255,17 @@ function CoachTierCard({
             </div>
           </div>
 
-          <div className="mt-auto pt-16 sm:pt-20">
+          <div className="mt-auto pt-10 sm:pt-16">
             <h3
-              className={`font-display text-[16px] uppercase leading-[0.95] tracking-wide sm:text-[21px] ${theme.titleClass}`}
+              className={`font-display text-[14px] uppercase leading-[0.95] tracking-wide sm:text-[21px] ${theme.titleClass}`}
             >
               {t(locale, `mgr.legacy.tier.${tier}`)}
             </h3>
-            <p className="mt-1.5 line-clamp-3 font-sans text-[9px] leading-relaxed text-white/50 sm:text-[11px]">
+            <p className="mt-1 line-clamp-2 font-sans text-[9px] leading-relaxed text-white/50 sm:mt-1.5 sm:line-clamp-3 sm:text-[11px]">
               {t(locale, `mgr.legacy.tier.${tier}.desc`)}
             </p>
             <div
-              className="mt-2.5 h-px w-full opacity-60"
+              className="mt-2 h-px w-full opacity-60 sm:mt-2.5"
               style={{
                 background: `linear-gradient(90deg, ${theme.accent}, transparent)`,
               }}
@@ -294,12 +296,12 @@ export function LandingPage({ locale }: { locale: Locale }) {
 
       <SiteHeader locale={locale} compact />
 
-      <section className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center px-4 py-5 text-center sm:py-6 lg:min-h-[calc(100dvh-3.5rem)] lg:py-4">
+      <section className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center px-4 py-4 text-center sm:py-6">
         <p className="mb-1.5 font-sans text-[10px] font-medium uppercase tracking-[0.32em] text-arena-accent sm:mb-2 sm:text-[11px]">
           {t(locale, "brand.eyebrow")}
         </p>
 
-        <h1 className="mx-auto max-w-4xl font-display text-[2.45rem] leading-[0.92] tracking-wide text-white sm:text-6xl lg:text-[4.25rem]">
+        <h1 className="mx-auto max-w-4xl font-display text-[2.1rem] leading-[0.92] tracking-wide text-white sm:text-6xl lg:text-[4.25rem]">
           {t(locale, "hero.title1")}{" "}
           <span className="bg-gradient-to-r from-arena-accent to-brand-green-bright bg-clip-text text-transparent">
             {t(locale, "hero.title2")}
@@ -310,27 +312,33 @@ export function LandingPage({ locale }: { locale: Locale }) {
           {t(locale, "hero.sub")}
         </p>
 
-        <div className="mt-5 grid w-full max-w-[360px] grid-cols-2 gap-3 sm:mt-5 sm:flex sm:max-w-4xl sm:justify-center sm:gap-4 lg:mt-4">
+        <div className="-mx-4 mt-4 flex w-[calc(100%+2rem)] gap-2.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:mt-5 sm:grid sm:w-full sm:max-w-3xl sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 md:max-w-4xl md:grid-cols-4">
           {LANDING_COACH_TIERS.map((card) => (
-            <CoachTierCard
+            <div
               key={card.tier}
-              locale={locale}
-              ovr={card.ovr}
-              tier={card.tier}
-            />
+              className="w-[42vw] max-w-[160px] shrink-0 sm:w-auto sm:max-w-none"
+            >
+              <CoachTierCard
+                locale={locale}
+                ovr={card.ovr}
+                tier={card.tier}
+              />
+            </div>
           ))}
         </div>
 
         <Link
           href={playHref(locale)}
-          className="mt-5 inline-flex items-center justify-center rounded-sm bg-arena-accent px-9 py-3 font-display text-xl uppercase tracking-wide text-arena-bg shadow-[0_0_24px_rgba(232,197,71,0.35)] transition-colors duration-200 hover:bg-brand-green-bright hover:text-white sm:mt-5 sm:px-10 sm:py-3.5 sm:text-2xl lg:mt-4"
+          className="mt-4 inline-flex w-full max-w-xs items-center justify-center rounded-sm bg-arena-accent px-8 py-3 font-display text-xl uppercase tracking-wide text-arena-bg shadow-[0_0_24px_rgba(232,197,71,0.35)] transition-colors duration-200 hover:bg-brand-green-bright hover:text-white sm:mt-5 sm:w-auto sm:max-w-none sm:px-10 sm:py-3.5 sm:text-2xl"
         >
           {t(locale, "cta.play")}
         </Link>
-        <p className="mt-2 font-mono text-[10px] text-white/35">
+        <p className="mt-2 px-2 font-mono text-[10px] leading-relaxed text-white/35">
           {t(locale, "mgr.realDisclaimer")}
         </p>
       </section>
+
+      <PastRunsSection locale={locale} />
 
       <div className="relative z-10">
         <SiteFooter locale={locale} compact />

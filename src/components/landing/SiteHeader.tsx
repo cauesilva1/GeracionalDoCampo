@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BrandLogo } from "@/components/BrandLogo";
 import { localePath, playHref } from "@/lib/i18n";
 import { t } from "@/lib/i18n/dictionary";
 import type { Locale } from "@/types/game";
@@ -26,14 +27,23 @@ export function SiteHeader({
       >
         <Link
           href={localePath(locale)}
-          className={`font-display tracking-wide transition-opacity hover:opacity-90 ${
-            compact ? "text-xl sm:text-2xl" : "text-2xl"
-          }`}
+          className="flex min-w-0 items-center gap-2 transition-opacity hover:opacity-90 sm:gap-2.5"
         >
-          <span className="text-white">{t(locale, "brand.name")}</span>
-          <span className="text-arena-accent">{t(locale, "brand.domain")}</span>
+          <BrandLogo
+            size={compact ? 36 : 44}
+            priority
+            className="shrink-0 drop-shadow-[0_2px_8px_rgba(0,0,0,0.45)]"
+          />
+          <span
+            className={`min-w-0 truncate font-display tracking-wide ${
+              compact ? "text-lg sm:text-2xl" : "text-xl sm:text-2xl"
+            }`}
+          >
+            <span className="text-white">{t(locale, "brand.name")}</span>
+            <span className="text-arena-accent">{t(locale, "brand.domain")}</span>
+          </span>
         </Link>
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {locales.map((l) => (
             <Link
               key={l}
@@ -49,10 +59,10 @@ export function SiteHeader({
           ))}
           <Link
             href={playHref(locale)}
-            className={`ml-1 rounded-full bg-arena-accent font-display uppercase tracking-wide text-arena-bg transition-colors hover:bg-brand-green-bright hover:text-white sm:ml-2 ${
+            className={`ml-0.5 rounded-sm bg-arena-accent font-display uppercase tracking-wide text-arena-bg transition-colors hover:bg-brand-green-bright hover:text-white sm:ml-2 ${
               compact
-                ? "px-3.5 py-1.5 text-xs sm:px-4 sm:text-sm"
-                : "px-5 py-2 text-sm"
+                ? "px-2.5 py-1.5 text-[11px] sm:px-4 sm:text-sm"
+                : "px-3 py-2 text-xs sm:px-5 sm:text-sm"
             }`}
           >
             {t(locale, "cta.play")}
