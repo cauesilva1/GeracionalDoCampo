@@ -124,18 +124,18 @@ export function originStartMods(origin: CoachOrigin): {
 
 /** Match result → coach OVR delta (soft growth, titles are the big jumps) */
 export function coachOvrDeltaFromMatch(result: "W" | "D" | "L"): number {
-  if (result === "W") return 0.45;
-  if (result === "D") return 0.08;
-  return -0.25;
+  if (result === "W") return 0.22;
+  if (result === "D") return 0.04;
+  return -0.18;
 }
 
 export function coachOvrDeltaFromTitle(opts: {
   tier: 1 | 2;
   prestige: number;
 }): number {
-  let d = opts.tier === 1 ? 3.2 : 2.0;
-  if (opts.prestige >= 88) d += 1.5;
-  else if (opts.prestige >= 80) d += 0.6;
+  let d = opts.tier === 1 ? 2.4 : 1.4;
+  if (opts.prestige >= 88) d += 1.2;
+  else if (opts.prestige >= 80) d += 0.5;
   return d;
 }
 
@@ -152,28 +152,47 @@ export function coachOvrMatchBonus(ovr: number): number {
   return clamp((ovr - 60) * 0.075, -1.2, 2.8);
 }
 
+/**
+ * Legacy score — titles counted once (by tier), OVR is a boost not the bulk.
+ * Rough targets: builder ~40–70, contender ~70–115, elite ~115–165, legend 165+.
+ */
 export function computeManagerLegacyScore(career: ManagerCareer): number {
   const t = career.trophyCabinet ?? emptyTrophyCabinet();
-  const titles = career.trophies ?? t.leagueTitles;
   const ovr = career.ovr ?? career.reputation ?? 50;
   return Math.round(
-    titles * 12 +
-      t.topFlightTitles * 8 +
-      t.secondDivTitles * 4 +
-      t.promotions * 5 +
-      t.bigClubTitles * 10 +
-      ovr * 0.55 +
-      (career.careerWins ?? 0) * 0.15 +
-      career.seasonsInCareer * 1.2 +
-      (career.peakTier === 1 ? 15 : 0) +
-      (career.clubsManaged ?? 1) * 2,
+    t.topFlightTitles * 22 +
+      t.secondDivTitles * 10 +
+      t.promotions * 8 +
+      t.bigClubTitles * 14 +
+      // OVR above 55 counts; 85 ≈ +9 pts (was ~47)
+      Math.max(0, ovr - 55) * 0.3 +
+      (career.careerWins ?? 0) * 0.25 +
+      career.seasonsInCareer * 1.5 +
+      (career.peakTier === 1 ? 6 : 0) +
+      Math.max(0, (career.clubsManaged ?? 1) - 1) * 3,
   );
 }
 
 export function getManagerLegacyTier(score: number): CoachLegacyTier {
-  if (score >= 160) return "legend";
-  if (score >= 110) return "elite";
+  if (score >= 165) return "legend";
+  if (score >= 115) return "elite";
   if (score >= 70) return "contender";
   if (score >= 40) return "builder";
   return "prospect";
+}
+
+/** Extra gate so early careers with inflated OVR don't skip into Elite. */
+export function resolveManagerLegacyTier(
+  career: ManagerCareer,
+  score = computeManagerLegacyScore(career),
+): CoachLegacyTier {
+  const t = career.trophyCabinet ?? emptyTrophyCabinet();
+  let tier = getManagerLegacyTier(score);
+  const titles = t.topFlightTitles + t.secondDivTitles;
+  if (tier === "legend" && t.topFlightTitles < 2) tier = "elite";
+  if (tier === "elite" && titles < 2 && t.topFlightTitles < 1) tier = "contender";
+  if (tier === "contender" && titles < 1 && (career.seasonsInCareer ?? 0) < 4) {
+    tier = "builder";
+  }
+  return tier;
 }

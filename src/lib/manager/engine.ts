@@ -37,6 +37,7 @@ import {
   getManagerLegacyTier,
   originStartMods,
   philosophyToTactics,
+  resolveManagerLegacyTier,
 } from "@/lib/manager/legacy";
 import {
   buildNationalPool,
@@ -1126,7 +1127,7 @@ function endCareer(
 ): ManagerState {
   if (!state.career) return state;
   const score = computeManagerLegacyScore(state.career);
-  const tier = getManagerLegacyTier(score);
+  const tier = resolveManagerLegacyTier(state.career, score);
   return {
     ...state,
     phase: "legacy",

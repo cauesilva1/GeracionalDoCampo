@@ -1,7 +1,7 @@
 import { MANAGER_STORAGE_KEY } from "@/lib/manager/clubs";
 import {
   computeManagerLegacyScore,
-  getManagerLegacyTier,
+  resolveManagerLegacyTier,
 } from "@/lib/manager/legacy";
 import { uid } from "@/lib/utils";
 import type {
@@ -57,7 +57,7 @@ export function pastRunFromState(
 
   const score =
     career.legacyScore ?? computeManagerLegacyScore(career);
-  const tier = career.legacyTier ?? getManagerLegacyTier(score);
+  const tier = career.legacyTier ?? resolveManagerLegacyTier(career, score);
 
   return {
     id: uid("run"),
