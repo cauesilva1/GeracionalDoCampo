@@ -281,8 +281,10 @@ export function computeLegacyScore(career: CareerState): number {
     tr.dpoy * 7 +
     tr.roy * 5 +
     tr.reiAmerica * 6 +
-    tr.worldCups * 12 +
+    tr.worldCups * 14 +
+    (tr.olympicRuns ?? 0) * 16 +
     (tr.euroTitles ?? 0) * 14 +
+    (career.nationalCaps ?? 0) * 1.5 +
     (career.inNba ? 10 : 0) +
     career.seasonsPlayed * 1.1
   );

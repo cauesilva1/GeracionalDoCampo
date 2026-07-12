@@ -1,6 +1,4 @@
-import { mkdir, appendFile } from "fs/promises";
-import path from "path";
-import { randomUUID } from "crypto";
+import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
@@ -29,27 +27,19 @@ export async function POST(request: Request) {
     return Response.json({ ok: false, error: "too_long" }, { status: 400 });
   }
 
-  const report = {
-    id: randomUUID(),
-    at: new Date().toISOString(),
-    message,
-    locale: body.locale ?? "pt",
-    path: body.path ?? "",
-    userAgent: (body.userAgent ?? "").slice(0, 300),
-  };
-
-  // Always land in server logs (works on Vercel dashboard too)
-  console.log("[bug-report]", JSON.stringify(report));
-
-  const dir = path.join(process.cwd(), "data");
-  const file = path.join(dir, "bug-reports.jsonl");
   try {
-    await mkdir(dir, { recursive: true });
-    await appendFile(file, `${JSON.stringify(report)}\n`, "utf8");
+    const report = await prisma.bugReport.create({
+      data: {
+        message,
+        locale: body.locale ?? "pt",
+        path: (body.path ?? "").slice(0, 500),
+        userAgent: (body.userAgent ?? "").slice(0, 300),
+        status: "open",
+      },
+    });
+    return Response.json({ ok: true, id: report.id });
   } catch (err) {
-    // Read-only FS (e.g. some hosts) — log already has the report
-    console.warn("[bug-report] file write skipped:", err);
+    console.error("[bug-report]", err);
+    return Response.json({ ok: false, error: "db_error" }, { status: 500 });
   }
-
-  return Response.json({ ok: true, id: report.id });
 }

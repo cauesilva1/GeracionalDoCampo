@@ -216,6 +216,7 @@ function finishNationalSlate(
 ): GameState {
   const wins = s.nationalWins ?? 0;
   let next = { ...career };
+  // Better national campaigns: strong run counts as a title for legacy
   if (callKind && wins > 0) {
     next = {
       ...next,
@@ -227,7 +228,7 @@ function finishNationalSlate(
             : next.trophies.worldCups,
         olympicRuns:
           callKind === "olympics"
-            ? (next.trophies.olympicRuns ?? 0) + (wins >= 1 ? 1 : 0)
+            ? (next.trophies.olympicRuns ?? 0) + (wins >= 2 ? 1 : 0)
             : (next.trophies.olympicRuns ?? 0),
       },
       marketBoost: (next.marketBoost ?? 0) + (wins >= 2 ? 2 : 1),

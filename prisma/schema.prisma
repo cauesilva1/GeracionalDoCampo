@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model BugReport {
+  id        String   @id @default(cuid())
+  message   String
+  locale    String   @default("pt")
+  path      String   @default("")
+  userAgent String   @default("")
+  status    String   @default("open") // open | done
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model HallEntry {
+  id           String   @id @default(cuid())
+  playerName   String
+  posId        String
+  ovr          Int
+  tierId       String
+  seasons      Int
+  leagueTitles Int      @default(0)
+  nbaTitles    Int      @default(0)
+  euroTitles    Int      @default(0)
+  worldCups    Int      @default(0)
+  olympicRuns  Int      @default(0)
+  mvps         Int      @default(0)
+  finalsMvps   Int      @default(0)
+  allStars     Int      @default(0)
+  legacyScore  Float
+  careerSeed   String   @default("")
+  locale       String   @default("pt")
+  nickname     String?
+  createdAt    DateTime @default(now())
+
+  @@index([legacyScore])
+  @@index([ovr])
+  @@index([createdAt])
+}

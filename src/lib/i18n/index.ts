@@ -10,7 +10,7 @@ export function playHref(locale: Locale): string {
   return `/play?locale=${locale}`;
 }
 
-export type SitePage = "sobre" | "docs" | "privacidade" | "bug";
+export type SitePage = "sobre" | "docs" | "privacidade" | "bug" | "hall";
 
 export function sitePageHref(locale: Locale, page: SitePage): string {
   const path =
@@ -20,7 +20,9 @@ export function sitePageHref(locale: Locale, page: SitePage): string {
         ? "/docs"
         : page === "privacidade"
           ? "/privacidade"
-          : "/bug";
+          : page === "hall"
+            ? "/hall"
+            : "/bug";
   if (locale === "pt") return path;
   return `${path}?locale=${locale}`;
 }

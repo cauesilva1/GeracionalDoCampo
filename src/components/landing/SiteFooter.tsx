@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n/dictionary";
 import type { Locale } from "@/types/game";
 
 const LINKS: { page: SitePage; key: string }[] = [
+  { page: "hall", key: "nav.hall" },
   { page: "sobre", key: "nav.about" },
   { page: "docs", key: "nav.docs" },
   { page: "privacidade", key: "nav.privacy" },

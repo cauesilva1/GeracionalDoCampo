@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { BasketballCourtLines } from "@/components/landing/BasketballCourtLines";
+import { HallLeaderboard } from "@/components/landing/HallLeaderboard";
 import { SiteHeader } from "@/components/landing/SiteHeader";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 import { playHref } from "@/lib/i18n";
@@ -96,14 +97,14 @@ function TierPreviewCard({
 
 export function LandingPage({ locale }: { locale: Locale }) {
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-x-hidden bg-arena-bg text-brand-text lg:h-dvh lg:overflow-hidden">
+    <div className="relative flex min-h-dvh flex-col overflow-x-hidden bg-arena-bg text-brand-text">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,122,0,0.14)_0%,transparent_55%),radial-gradient(ellipse_at_80%_80%,rgba(255,59,48,0.1)_0%,transparent_45%),radial-gradient(ellipse_at_20%_70%,rgba(30,58,138,0.25)_0%,transparent_50%)]"
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,122,0,0.14)_0%,transparent_55%),radial-gradient(ellipse_at_80%_80%,rgba(255,59,48,0.1)_0%,transparent_45%),radial-gradient(ellipse_at_20%_70%,rgba(30,58,138,0.25)_0%,transparent_50%)]"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.07]"
+        className="pointer-events-none fixed inset-0 opacity-[0.07]"
         style={{
           backgroundImage:
             "linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)",
@@ -113,7 +114,8 @@ export function LandingPage({ locale }: { locale: Locale }) {
 
       <SiteHeader locale={locale} compact />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center px-4 py-5 text-center sm:py-5 lg:py-3">
+      {/* Hero — fits first viewport on desktop */}
+      <section className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center justify-center px-4 py-5 text-center sm:py-6 lg:min-h-[calc(100dvh-3.5rem)] lg:py-4">
         <p className="mb-1.5 font-sans text-[10px] font-medium uppercase tracking-[0.32em] text-arena-accent sm:mb-2 sm:text-[11px]">
           {t(locale, "brand.eyebrow")}
         </p>
@@ -130,7 +132,6 @@ export function LandingPage({ locale }: { locale: Locale }) {
           {t(locale, "hero.sub")}
         </p>
 
-        {/* Mobile: 2×2 grid (scroll ok). Desktop: row of 4. */}
         <div className="mt-5 grid w-full max-w-[340px] grid-cols-2 gap-2.5 sm:mt-5 sm:flex sm:max-w-4xl sm:justify-center sm:gap-4 lg:mt-4">
           {LANDING_TIERS.map((card) => (
             <TierPreviewCard
@@ -148,7 +149,23 @@ export function LandingPage({ locale }: { locale: Locale }) {
         >
           [ {t(locale, "cta.play")} ]
         </Link>
-      </main>
+      </section>
+
+      {/* Hall of Fame — below the fold */}
+      <section className="relative z-10 mx-auto w-full max-w-3xl px-4 pb-10 pt-4 sm:pb-14 sm:pt-6">
+        <div className="mb-5 text-center sm:mb-6">
+          <p className="font-sans text-[10px] font-medium uppercase tracking-[0.32em] text-arena-accent">
+            Top 10
+          </p>
+          <h2 className="mt-1 font-display text-3xl uppercase tracking-wide text-white sm:text-4xl">
+            {t(locale, "hall.title")}
+          </h2>
+          <p className="mx-auto mt-1.5 max-w-md font-sans text-sm text-white/50">
+            {t(locale, "hall.sub")}
+          </p>
+        </div>
+        <HallLeaderboard locale={locale} limit={10} showMoreLink />
+      </section>
 
       <div className="relative z-10">
         <SiteFooter locale={locale} compact />

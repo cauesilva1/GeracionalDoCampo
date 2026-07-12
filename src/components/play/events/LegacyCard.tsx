@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Download, RotateCcw } from "lucide-react";
+import { Copy, Download, RotateCcw, Trophy } from "lucide-react";
 import { BasketballHalfCourtMark } from "@/components/landing/BasketballCourtLines";
 import { Button } from "@/components/ui/Button";
 import { ATTRS } from "@/lib/data";
-import { liveStats } from "@/lib/simulation";
+import { computeLegacyScore, liveStats } from "@/lib/simulation";
 import { legacyTheme } from "@/lib/legacyTheme";
 import { useGameActions, useGameState } from "@/hooks/useGameSimulation";
 
@@ -60,6 +60,8 @@ function downloadLegacyPng(opts: {
   league: number;
   nba: number;
   euro: number;
+  worldCups: number;
+  olympics: number;
   mvp: number;
   finals: number;
   allstars: number;
@@ -188,24 +190,26 @@ function downloadLegacyPng(opts: {
     ["LIGA", opts.league],
     ["NBA", opts.nba],
     ["EURO", opts.euro],
+    ["COPA", opts.worldCups],
+    ["OLY", opts.olympics],
     ["MVP", opts.mvp],
     ["FMVP", opts.finals],
     ["AS", opts.allstars],
   ];
   stats.forEach(([label, val], i) => {
-    const col = i % 3;
-    const row = Math.floor(i / 3);
-    const x = 48 + col * 220;
-    const y = 570 + row * 130;
+    const col = i % 4;
+    const row = Math.floor(i / 4);
+    const x = 48 + col * 160;
+    const y = 560 + row * 120;
     ctx.fillStyle = "rgba(255,255,255,0.04)";
-    roundRect(ctx, x, y, 200, 108, 16);
+    roundRect(ctx, x, y, 148, 100, 14);
     ctx.fill();
     ctx.fillStyle = theme.accent;
-    ctx.font = "800 52px Bebas Neue, Impact, system-ui, sans-serif";
-    ctx.fillText(String(val), x + 22, y + 62);
+    ctx.font = "800 44px Bebas Neue, Impact, system-ui, sans-serif";
+    ctx.fillText(String(val), x + 18, y + 56);
     ctx.fillStyle = "rgba(255,255,255,0.4)";
-    ctx.font = "600 15px system-ui, sans-serif";
-    ctx.fillText(label, x + 22, y + 88);
+    ctx.font = "600 13px system-ui, sans-serif";
+    ctx.fillText(label, x + 18, y + 80);
   });
 
   ctx.fillStyle = "rgba(255,255,255,0.28)";
@@ -263,6 +267,9 @@ export function LegacyCard() {
   const { state, ovr, legacyTierId } = useGameState();
   const { restart, copySummary, tr } = useGameActions();
   const [copied, setCopied] = useState(false);
+  const [hallStatus, setHallStatus] = useState<
+    "idle" | "sending" | "ok" | "err"
+  >("idle");
   const career = state.career;
   const player = state.player;
   if (!career || !player) return null;
@@ -282,6 +289,39 @@ export function LegacyCard() {
     }
   };
 
+  const handleHall = async () => {
+    setHallStatus("sending");
+    try {
+      const res = await fetch("/api/hall", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playerName: player.name,
+          posId: player.posId,
+          ovr,
+          tierId: legacyTierId,
+          seasons: career.seasonsPlayed,
+          leagueTitles: trph.leagueTitles,
+          nbaTitles: trph.nbaTitles,
+          euroTitles: trph.euroTitles ?? 0,
+          worldCups: trph.worldCups,
+          olympicRuns: trph.olympicRuns ?? 0,
+          mvps: trph.mvps,
+          finalsMvps: trph.finalsMvps,
+          allStars: trph.allStars,
+          legacyScore: computeLegacyScore(career),
+          careerSeed: career.careerSeed || state.careerSeed || "",
+          locale: state.locale,
+          nickname: career.nickname,
+        }),
+      });
+      if (!res.ok) throw new Error("fail");
+      setHallStatus("ok");
+    } catch {
+      setHallStatus("err");
+    }
+  };
+
   const handleDownload = () => {
     downloadLegacyPng({
       name: player.name,
@@ -293,6 +333,8 @@ export function LegacyCard() {
       league: trph.leagueTitles,
       nba: trph.nbaTitles,
       euro: trph.euroTitles ?? 0,
+      worldCups: trph.worldCups,
+      olympics: trph.olympicRuns ?? 0,
       mvp: trph.mvps,
       finals: trph.finalsMvps,
       allstars: trph.allStars,
@@ -304,6 +346,8 @@ export function LegacyCard() {
     [tr("legacy.leagueTitles"), trph.leagueTitles],
     [tr("legacy.nbaTitles"), trph.nbaTitles],
     [tr("legacy.euroTitles"), trph.euroTitles ?? 0],
+    [tr("legacy.worldCups"), trph.worldCups],
+    [tr("legacy.olympics"), trph.olympicRuns ?? 0],
     [tr("legacy.mvps"), trph.mvps],
     [tr("legacy.finals"), trph.finalsMvps],
     [tr("legacy.allstars"), trph.allStars],
@@ -417,15 +461,15 @@ export function LegacyCard() {
           </div>
 
           {/* Trophies — no nested cards */}
-          <div className="mt-4 grid grid-cols-3 gap-x-3 gap-y-3">
+          <div className="mt-4 grid grid-cols-4 gap-x-2 gap-y-3">
             {trophies.map(([label, val]) => (
               <div key={label as string} className="text-left">
                 <p
-                  className={`font-display text-2xl leading-none ${theme.ovrClass}`}
+                  className={`font-display text-xl leading-none sm:text-2xl ${theme.ovrClass}`}
                 >
                   {val}
                 </p>
-                <p className="mt-0.5 font-sans text-[9px] uppercase leading-tight tracking-wide text-white/40">
+                <p className="mt-0.5 font-sans text-[8px] uppercase leading-tight tracking-wide text-white/40 sm:text-[9px]">
                   {label}
                 </p>
               </div>
@@ -442,6 +486,18 @@ export function LegacyCard() {
       </div>
 
       <div className="mt-4 flex shrink-0 flex-wrap justify-center gap-2">
+        <Button
+          variant="outline"
+          disabled={hallStatus === "sending" || hallStatus === "ok"}
+          onClick={() => void handleHall()}
+        >
+          <Trophy className="h-3.5 w-3.5" />
+          {hallStatus === "ok"
+            ? tr("hall.submitted")
+            : hallStatus === "sending"
+              ? tr("hall.submitting")
+              : tr("hall.submit")}
+        </Button>
         <Button variant="ghost" onClick={handleDownload}>
           <Download className="h-3.5 w-3.5" />
           {tr("legacy.download")}
@@ -455,6 +511,11 @@ export function LegacyCard() {
           {tr("cta.newCareer")}
         </Button>
       </div>
+      {hallStatus === "err" && (
+        <p className="mt-2 text-center font-sans text-[11px] text-arena-buzzer">
+          {tr("hall.submitError")}
+        </p>
+      )}
     </div>
   );
 }

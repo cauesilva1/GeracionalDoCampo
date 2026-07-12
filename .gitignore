@@ -42,3 +42,8 @@ next-env.d.ts
 
 # bug reports (appended by /api/bugs)
 /data/bug-reports.jsonl
+
+# Prisma generated client
+/src/generated/prisma
+
+/src/generated/prisma
