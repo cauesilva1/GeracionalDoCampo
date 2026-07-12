@@ -201,7 +201,7 @@ function CoachTierCard({
       }}
     >
       <div
-        className="relative aspect-[3/4] overflow-hidden"
+        className="relative aspect-[4/5] overflow-hidden sm:aspect-[3/4]"
         style={{
           background: `linear-gradient(175deg, ${theme.bg1} 0%, ${theme.bg0} 42%, #030a07 100%)`,
         }}
@@ -255,13 +255,13 @@ function CoachTierCard({
             </div>
           </div>
 
-          <div className="mt-auto pt-10 sm:pt-16">
+          <div className="mt-auto pt-4 sm:pt-10">
             <h3
-              className={`font-display text-[14px] uppercase leading-[0.95] tracking-wide sm:text-[21px] ${theme.titleClass}`}
+              className={`font-display text-[13px] uppercase leading-[0.95] tracking-wide sm:text-[21px] ${theme.titleClass}`}
             >
               {t(locale, `mgr.legacy.tier.${tier}`)}
             </h3>
-            <p className="mt-1 line-clamp-2 font-sans text-[9px] leading-relaxed text-white/50 sm:mt-1.5 sm:line-clamp-3 sm:text-[11px]">
+            <p className="mt-1 line-clamp-2 font-sans text-[9px] leading-snug text-white/50 sm:mt-1.5 sm:line-clamp-3 sm:text-[11px]">
               {t(locale, `mgr.legacy.tier.${tier}.desc`)}
             </p>
             <div
@@ -312,18 +312,14 @@ export function LandingPage({ locale }: { locale: Locale }) {
           {t(locale, "hero.sub")}
         </p>
 
-        <div className="-mx-4 mt-4 flex w-[calc(100%+2rem)] gap-2.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:mt-5 sm:grid sm:w-full sm:max-w-3xl sm:grid-cols-2 sm:gap-3 sm:overflow-visible sm:px-0 md:max-w-4xl md:grid-cols-4">
+        <div className="mt-4 grid w-full max-w-md grid-cols-2 gap-2 sm:mt-5 sm:max-w-3xl sm:gap-3 md:max-w-4xl md:grid-cols-4">
           {LANDING_COACH_TIERS.map((card) => (
-            <div
+            <CoachTierCard
               key={card.tier}
-              className="w-[42vw] max-w-[160px] shrink-0 sm:w-auto sm:max-w-none"
-            >
-              <CoachTierCard
-                locale={locale}
-                ovr={card.ovr}
-                tier={card.tier}
-              />
-            </div>
+              locale={locale}
+              ovr={card.ovr}
+              tier={card.tier}
+            />
           ))}
         </div>
 

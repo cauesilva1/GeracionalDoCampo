@@ -24,21 +24,26 @@ export function countryNatCode(country: CoachCountry): string {
 /** Maybe spawn a career dilemma after a match. */
 export function maybeCreateCareerEvent(state: ManagerState): CareerEvent | null {
   if (!state.career || state.careerEvent) return null;
-  if (Math.random() > 0.42) return null;
+  // ~14% chance — not every match
+  if (Math.random() > 0.14) return null;
 
   const squad = state.squad;
-  const kinds = [
-    "transfer_request",
-    "captain_band",
-    "set_pieces",
-    "dressing_room",
-  ] as const;
+  // Transfer request is rarer than other dilemmas
+  const roll = Math.random();
+  const kinds =
+    roll < 0.18
+      ? (["transfer_request"] as const)
+      : roll < 0.42
+        ? (["captain_band"] as const)
+        : roll < 0.68
+          ? (["set_pieces"] as const)
+          : (["dressing_room"] as const);
   // National invite rarer, needs OVR
   if (
     !state.career.nationalCoach &&
     (state.career.ovr ?? 50) >= 70 &&
     state.career.seasonsInCareer >= 2 &&
-    Math.random() < 0.22
+    Math.random() < 0.12
   ) {
     return {
       id: uid("ev"),
@@ -52,7 +57,7 @@ export function maybeCreateCareerEvent(state: ManagerState): CareerEvent | null 
     };
   }
 
-  const kind = kinds[Math.floor(Math.random() * kinds.length)]!;
+  const kind = kinds[0]!;
 
   if (kind === "transfer_request") {
     const restless = [...squad]

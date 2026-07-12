@@ -51,7 +51,7 @@ export function PastRunsSection({ locale }: { locale: Locale }) {
   if (runs.length === 0) return null;
 
   return (
-    <section className="relative z-10 mx-auto mt-8 w-full max-w-5xl px-4 pb-8 sm:mt-10 sm:pb-10">
+    <section className="relative z-10 mx-auto mt-6 w-full max-w-5xl px-4 pb-4 sm:mt-8 sm:pb-6">
       <div className="rounded-md border border-white/10 bg-black/30 px-3 py-4 sm:px-5 sm:py-5">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>

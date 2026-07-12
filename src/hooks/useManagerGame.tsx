@@ -30,6 +30,7 @@ import {
   setStarterSlot,
   setTab,
   setTactics,
+  skipSeason,
   startCareer,
   toggleNationalCallUp,
   tradePlayer,
@@ -76,6 +77,7 @@ type ManagerActions = {
   doTrade: (giveId: string, listingId: string) => void;
   doRefreshMarket: () => void;
   doPlayMatch: () => void;
+  doSkipSeason: () => void;
   doFinishLiveMatch: (override?: {
     homeGoals: number;
     awayGoals: number;
@@ -230,6 +232,10 @@ export function ManagerGameProvider({
     setState((s) => playMatchday(s));
   }, []);
 
+  const doSkipSeason = useCallback(() => {
+    setState((s) => skipSeason(s));
+  }, []);
+
   const doFinishLiveMatch = useCallback(
     (override?: { homeGoals: number; awayGoals: number }) => {
       setState((s) => finishLiveMatch(s, override));
@@ -312,6 +318,7 @@ export function ManagerGameProvider({
       doTrade,
       doRefreshMarket,
       doPlayMatch,
+      doSkipSeason,
       doFinishLiveMatch,
       doResolveEvent,
       doOpenNational,
@@ -340,6 +347,7 @@ export function ManagerGameProvider({
       doTrade,
       doRefreshMarket,
       doPlayMatch,
+      doSkipSeason,
       doFinishLiveMatch,
       doResolveEvent,
       doOpenNational,

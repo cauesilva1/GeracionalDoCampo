@@ -394,10 +394,10 @@ export function MatchLiveOverlay({
   const og = userHome ? awayGoals : homeGoals;
 
   return (
-    <div className="absolute inset-0 z-30 flex items-stretch justify-center overflow-y-auto bg-arena-bg/96 px-2 py-2 backdrop-blur-md sm:px-4 sm:py-5">
-      <div className="flex w-full max-w-4xl flex-col gap-3 lg:flex-row lg:items-start">
-        {/* Pitch */}
-        <div className="min-w-0 flex-1">
+    <div className="absolute inset-0 z-30 flex items-stretch justify-center overflow-y-auto bg-arena-bg/96 px-2 py-2 backdrop-blur-md sm:px-4 sm:py-4">
+      <div className="flex w-full max-w-4xl flex-col gap-2 lg:flex-row lg:items-start lg:gap-3">
+        {/* Score + actions first so mobile doesn't bury buttons */}
+        <div className="order-1 min-w-0 flex-1 space-y-2">
           <div className="flex items-center justify-between gap-2 rounded-sm border border-white/10 bg-black/50 px-2.5 py-2">
             <p className="min-w-0 truncate font-display text-sm uppercase text-white sm:text-base">
               {home?.shortName}{" "}
@@ -408,7 +408,7 @@ export function MatchLiveOverlay({
             </p>
             <div className="flex shrink-0 items-center gap-2">
               {important && (
-                <span className="font-mono text-[8px] uppercase tracking-wider text-arena-buzzer">
+                <span className="hidden font-mono text-[8px] uppercase tracking-wider text-arena-buzzer sm:inline">
                   {tr("mgr.live.important")}
                 </span>
               )}
@@ -418,11 +418,13 @@ export function MatchLiveOverlay({
             </div>
           </div>
 
-          <div className="mx-auto mt-2 w-full max-w-[280px] sm:max-w-[320px]">
-            <div
-              className="relative aspect-[68/105] overflow-hidden rounded-md shadow-[0_12px_40px_rgba(0,0,0,0.55)] ring-1 ring-white/20"
-              style={{
-                background: `
+          {/* Pitch + compact feed side-by-side on phone */}
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-start gap-2 lg:grid-cols-1">
+            <div className="mx-auto w-full max-w-[200px] sm:max-w-[280px] lg:max-w-[300px]">
+              <div
+                className="relative aspect-[68/105] overflow-hidden rounded-md shadow-[0_8px_28px_rgba(0,0,0,0.5)] ring-1 ring-white/20"
+                style={{
+                  background: `
                   repeating-linear-gradient(
                     90deg,
                     #1f6b38 0px,
@@ -431,88 +433,136 @@ export function MatchLiveOverlay({
                     #246f3d 36px
                   )
                 `,
-              }}
-            >
-              {/* Soft vignette */}
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-0"
-                style={{
-                  background:
-                    "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.35) 100%)",
                 }}
-              />
-
-              {/* Markings */}
-              <div className="pointer-events-none absolute inset-[4.5%] border border-white/55">
-                <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-white/55" />
-                <div className="absolute left-1/2 top-1/2 h-[16%] w-[42%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/55" />
-                <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70" />
-                {/* Top box */}
-                <div className="absolute left-[18%] right-[18%] top-0 h-[12%] border border-t-0 border-white/55" />
-                <div className="absolute left-[32%] right-[32%] top-0 h-[5%] border border-t-0 border-white/45" />
-                {/* Bottom box */}
-                <div className="absolute bottom-0 left-[18%] right-[18%] h-[12%] border border-b-0 border-white/55" />
-                <div className="absolute bottom-0 left-[32%] right-[32%] h-[5%] border border-b-0 border-white/45" />
-              </div>
-
-              {dots.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  title={`${d.name} · ${d.rating.toFixed(1)}`}
-                  onClick={() => d.user && setSelectedId(d.id)}
-                  className={`absolute z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-[left,top,transform] duration-700 ease-in-out ${
-                    selectedId === d.id ? "z-10 scale-125" : ""
-                  }`}
+              >
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0"
                   style={{
-                    left: `${d.xy.x}%`,
-                    top: `${100 - d.xy.y}%`,
-                    width: d.user ? 11 : 9,
-                    height: d.user ? 11 : 9,
-                    backgroundColor: d.user ? userColor : oppColor,
-                    borderColor: selectedId === d.id ? "#fff" : "rgba(255,255,255,0.75)",
-                    opacity: d.fatigue < 40 ? 0.55 : 0.95,
-                    boxShadow: d.user
-                      ? "0 0 0 1px rgba(0,0,0,0.35)"
-                      : "0 0 0 1px rgba(0,0,0,0.25)",
+                    background:
+                      "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.35) 100%)",
                   }}
                 />
-              ))}
 
-              {finished && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
-                  <div className="mx-3 rounded-sm border border-arena-accent/50 bg-arena-panel/95 px-5 py-4 text-center">
-                    <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-arena-accent">
-                      {tr("mgr.live.fullTime")}
-                    </p>
-                    <p className="mt-1 font-display text-2xl text-white">
-                      {homeGoals}–{awayGoals}
-                    </p>
-                    <Button className="mt-3 w-full" onClick={confirmFinish}>
-                      {tr("mgr.live.finish")}
-                    </Button>
-                  </div>
+                <div className="pointer-events-none absolute inset-[4.5%] border border-white/55">
+                  <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-white/55" />
+                  <div className="absolute left-1/2 top-1/2 h-[16%] w-[42%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/55" />
+                  <div className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70" />
+                  <div className="absolute left-[18%] right-[18%] top-0 h-[12%] border border-t-0 border-white/55" />
+                  <div className="absolute left-[32%] right-[32%] top-0 h-[5%] border border-t-0 border-white/45" />
+                  <div className="absolute bottom-0 left-[18%] right-[18%] h-[12%] border border-b-0 border-white/55" />
+                  <div className="absolute bottom-0 left-[32%] right-[32%] h-[5%] border border-b-0 border-white/45" />
                 </div>
-              )}
+
+                {dots.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    title={`${d.name} · ${d.rating.toFixed(1)}`}
+                    onClick={() => d.user && setSelectedId(d.id)}
+                    className={`absolute z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-[left,top,transform] duration-700 ease-in-out ${
+                      selectedId === d.id ? "z-10 scale-125" : ""
+                    }`}
+                    style={{
+                      left: `${d.xy.x}%`,
+                      top: `${100 - d.xy.y}%`,
+                      width: d.user ? 10 : 8,
+                      height: d.user ? 10 : 8,
+                      backgroundColor: d.user ? userColor : oppColor,
+                      borderColor:
+                        selectedId === d.id ? "#fff" : "rgba(255,255,255,0.75)",
+                      opacity: d.fatigue < 40 ? 0.55 : 0.95,
+                      boxShadow: "0 0 0 1px rgba(0,0,0,0.3)",
+                    }}
+                  />
+                ))}
+
+                {finished && (
+                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/45 backdrop-blur-[2px]">
+                    <div className="mx-2 rounded-sm border border-arena-accent/50 bg-arena-panel/95 px-3 py-3 text-center">
+                      <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-arena-accent">
+                        {tr("mgr.live.fullTime")}
+                      </p>
+                      <p className="mt-0.5 font-display text-xl text-white">
+                        {homeGoals}–{awayGoals}
+                      </p>
+                      <Button
+                        className="mt-2 w-full !py-1.5 text-[11px]"
+                        onClick={confirmFinish}
+                      >
+                        {tr("mgr.live.finish")}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full bg-arena-accent transition-[width] duration-150 ease-linear"
+                  style={{ width: `${(minute / MAX_MIN) * 100}%` }}
+                />
+              </div>
             </div>
 
-            <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full bg-arena-accent transition-[width] duration-150 ease-linear"
-                style={{ width: `${(minute / MAX_MIN) * 100}%` }}
-              />
+            {/* Mobile-first controls beside pitch */}
+            <div className="flex min-w-0 flex-col gap-1.5 lg:hidden">
+              <div className="rounded-sm border border-white/10 bg-black/40 p-2">
+                <p className="font-mono text-[8px] uppercase text-white/40">
+                  {tr("mgr.live.feed")}
+                </p>
+                <ul className="mt-1 max-h-28 space-y-1 overflow-y-auto">
+                  {feed.length === 0 && (
+                    <li className="text-[10px] text-white/35">
+                      {tr("mgr.live.kickoff")}
+                    </li>
+                  )}
+                  {feed.slice(0, 4).map((line, i) => (
+                    <li
+                      key={`${line}-${i}`}
+                      className="border-l-2 border-arena-accent/60 pl-1.5 font-mono text-[9px] text-white/75"
+                    >
+                      {line}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 font-mono text-[8px] text-white/35">
+                  {formation} · {tr(`mgr.style.${style}`)}
+                </p>
+              </div>
+
+              {!finished ? (
+                <div className="flex flex-col gap-1">
+                  <Button
+                    className="w-full !py-2 text-[11px]"
+                    onClick={openBoard}
+                  >
+                    {tr("mgr.live.tacticsBtn")}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full !py-1.5 text-[10px]"
+                    onClick={jumpToEnd}
+                  >
+                    {tr("mgr.live.skip")}
+                  </Button>
+                </div>
+              ) : (
+                <Button className="w-full !py-2 text-[11px]" onClick={confirmFinish}>
+                  {tr("mgr.live.finish")}
+                </Button>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Side panel */}
-        <div className="flex w-full flex-col gap-2 pb-6 lg:w-72 lg:shrink-0 lg:pb-0">
+        {/* Desktop / tablet side panel */}
+        <div className="order-2 hidden w-full flex-col gap-2 lg:flex lg:w-72 lg:shrink-0">
           <div className="rounded-sm border border-white/10 bg-black/40 p-2.5">
             <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/40">
               {tr("mgr.live.onPitch")}
             </p>
-            <ul className="mt-1.5 max-h-40 space-y-1 overflow-y-auto sm:max-h-48">
+            <ul className="mt-1.5 max-h-48 space-y-1 overflow-y-auto">
               {userDots.map((d) => (
                 <li key={d.id}>
                   <button

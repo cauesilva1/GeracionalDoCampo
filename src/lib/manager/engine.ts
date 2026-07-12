@@ -511,6 +511,7 @@ function finishMatchAftermath(
   state: ManagerState,
   tableIn: import("@/types/manager").TableRow[],
   userResult: import("@/types/manager").MatchResult | null,
+  opts?: { skipEvents?: boolean },
 ): ManagerState {
   if (!state.career || !state.season) return state;
   const s = state.season;
@@ -598,10 +599,16 @@ function finishMatchAftermath(
       : state.seasonLog,
   };
 
-  if (windowOpen && !s.transferWindowOpen && next.career) {
+  if (windowOpen && next.career) {
+    // Refresh listings while the window is open so market actually changes
     next = {
       ...next,
-      career: syncBudgetAlias({ ...next.career, signingsThisWindow: 0 }),
+      career: syncBudgetAlias({
+        ...next.career,
+        signingsThisWindow: !s.transferWindowOpen
+          ? 0
+          : next.career.signingsThisWindow,
+      }),
       market: buildRealMarket(
         next.aiSquads,
         clubNameMap(next.career.leagueId),
@@ -624,12 +631,62 @@ function finishMatchAftermath(
     return finishSeason(next);
   }
 
-  const ev = maybeCreateCareerEvent(next);
-  if (ev) {
-    return { ...next, phase: "career_event", careerEvent: ev };
+  if (!opts?.skipEvents) {
+    const ev = maybeCreateCareerEvent(next);
+    if (ev) {
+      return { ...next, phase: "career_event", careerEvent: ev };
+    }
   }
 
   return next;
+}
+
+/** Simulate remaining matchdays without live UI / mid-season events. */
+export function skipSeason(state: ManagerState): ManagerState {
+  if (!state.career || !state.season) return state;
+  if (state.phase !== "hub") return state;
+  if (state.starters.length < 11) return state;
+
+  let cur: ManagerState = state;
+  let guard = 0;
+  while (
+    cur.career &&
+    cur.season &&
+    cur.phase === "hub" &&
+    cur.starters.length >= 11 &&
+    cur.season.matchday <= cur.season.matchdaysTotal &&
+    guard++ < 80
+  ) {
+    const s = cur.season;
+    const sim = simulateMatchday({
+      fixtures: s.fixtures,
+      matchday: s.matchday,
+      table: s.table,
+      userClubId: cur.career.clubId,
+      userSquad: cur.squad,
+      userStarters: cur.starters,
+      userTactics: cur.tactics,
+      coachPhilosophy: cur.career.philosophy,
+      coachOvr: cur.career.ovr ?? 58,
+      aiSquads: cur.aiSquads,
+    });
+    cur = finishMatchAftermath(
+      {
+        ...cur,
+        liveMatch: null,
+        season: {
+          ...s,
+          fixtures: sim.fixtures,
+          table: sim.table,
+          lastResult: sim.userResult,
+        },
+      },
+      sim.table,
+      sim.userResult,
+      { skipEvents: true },
+    );
+  }
+  return cur;
 }
 
 export function resolveCareerEvent(

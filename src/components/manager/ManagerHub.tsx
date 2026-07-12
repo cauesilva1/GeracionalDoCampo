@@ -58,7 +58,9 @@ export function ManagerHub() {
     doAutoLineup,
     doBuy,
     doSell,
+    doRefreshMarket,
     doPlayMatch,
+    doSkipSeason,
     doFinishLiveMatch,
     doResolveEvent,
     doOpenNational,
@@ -402,6 +404,14 @@ export function ManagerHub() {
                     ? tr("mgr.needXi")
                     : tr("mgr.playMatch")}
                 </Button>
+                <Button
+                  variant="ghost"
+                  className="mt-1.5 w-full !py-1.5 text-[10px]"
+                  onClick={doSkipSeason}
+                  disabled={state.starters.length < 11}
+                >
+                  {tr("mgr.skipSeason")}
+                </Button>
               </div>
             ) : (
               <p className="text-center text-xs text-white/40">—</p>
@@ -584,7 +594,15 @@ export function ManagerHub() {
             {!season.transferWindowOpen ? (
               <p className="text-[11px] text-white/40">{tr("mgr.windowClosed")}</p>
             ) : (
-              <div className="max-h-52 space-y-1 overflow-y-auto">
+              <>
+                <Button
+                  variant="outline"
+                  className="mb-2 !px-2 !py-1 text-[10px]"
+                  onClick={doRefreshMarket}
+                >
+                  {tr("mgr.refreshMarket")}
+                </Button>
+                <div className="max-h-52 space-y-1 overflow-y-auto">
                 {state.market.slice(0, 12).map((listing) => {
                   const block = canBuyPlayer(state, listing);
                   return (
@@ -628,7 +646,8 @@ export function ManagerHub() {
                     </div>
                   );
                 })}
-              </div>
+                </div>
+              </>
             )}
           </Section>
         </div>
