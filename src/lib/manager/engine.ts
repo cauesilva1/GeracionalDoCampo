@@ -34,7 +34,6 @@ import {
   coachOvrDeltaFromTitle,
   computeManagerLegacyScore,
   emptyTrophyCabinet,
-  getManagerLegacyTier,
   originStartMods,
   philosophyToTactics,
   resolveManagerLegacyTier,
