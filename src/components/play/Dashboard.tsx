@@ -9,6 +9,7 @@ import { AwardPopup } from "@/components/play/events/AwardPopup";
 import { ClutchMoment } from "@/components/play/events/ClutchMoment";
 import { FinalsPrompt } from "@/components/play/events/FinalsPrompt";
 import { JourneyKickoff } from "@/components/play/events/JourneyKickoff";
+import { NationalCallupPanel } from "@/components/play/events/NationalCallupPanel";
 import { NbaDraftNight } from "@/components/play/events/NbaDraftNight";
 import { SeasonResult } from "@/components/play/events/SeasonResult";
 import { SeasonEventPanel } from "@/components/play/events/SeasonEventPanel";
@@ -58,7 +59,8 @@ export function Dashboard() {
     state.centerView === "mid_event" ||
     state.centerView === "offseason_event" ||
     state.centerView === "simulating" ||
-    state.centerView === "journey";
+    state.centerView === "journey" ||
+    state.centerView === "national_callup";
 
   useEffect(() => {
     if (isModalEvent) setMobileTab("court");
@@ -73,6 +75,8 @@ export function Dashboard() {
     center = <NbaDraftNight />;
   } else if (state.centerView === "journey") {
     center = <JourneyKickoff />;
+  } else if (state.centerView === "national_callup") {
+    center = <NationalCallupPanel />;
   } else if (state.centerView === "simulating") {
     center = <SeasonSimulating />;
   } else if (
@@ -120,7 +124,7 @@ export function Dashboard() {
           </p>
           <p className="text-[11px] text-white/45">
             {tr(league.nameKey)} · {tr("dash.season")} {career.season} ·{" "}
-            {career.age} {tr("dash.age")}
+            {career.calendarYear ?? 2016} · {career.age} {tr("dash.age")}
           </p>
         </div>
         <div className="rounded-md border border-arena-accent/50 px-2.5 py-0.5 font-display text-base text-arena-accent">

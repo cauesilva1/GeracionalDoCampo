@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Volume2, VolumeX } from "lucide-react";
 import { Dashboard } from "@/components/play/Dashboard";
 import { DraftPanel } from "@/components/play/DraftPanel";
+import { HowToPanel } from "@/components/play/HowToPanel";
 import { LegacyCard } from "@/components/play/events/LegacyCard";
 import { RevealPanel } from "@/components/play/RevealPanel";
 import { SetupPanel } from "@/components/play/SetupPanel";
@@ -79,6 +80,9 @@ function PlayShell({ locale }: { locale: Locale }) {
   switch (state.phase) {
     case "setup":
       body = <SetupPanel />;
+      break;
+    case "howto":
+      body = <HowToPanel />;
       break;
     case "draft":
       body = <DraftPanel />;

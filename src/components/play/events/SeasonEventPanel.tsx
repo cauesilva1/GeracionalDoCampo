@@ -7,6 +7,7 @@ import {
   optionGainChips,
   optionWalletDelta,
 } from "@/lib/progression";
+import { streetRiskPct } from "@/lib/injury";
 import { springPremium } from "@/lib/motion";
 import { formatMoney } from "@/lib/utils";
 import { sfxClick } from "@/lib/sfx";
@@ -99,7 +100,13 @@ export function SeasonEventPanel() {
               </div>
               {opt.hintKey && (
                 <span className="mt-0.5 block font-sans text-[11px] text-white/45">
-                  {tr(opt.hintKey)}
+                  {opt.hintKey === "event.off.street.hint"
+                    ? tr("event.off.street.hintDyn", {
+                        pct: streetRiskPct(
+                          state.career?.injuryRisk ?? 0.15,
+                        ),
+                      })
+                    : tr(opt.hintKey)}
                 </span>
               )}
               {chips.length > 0 && (

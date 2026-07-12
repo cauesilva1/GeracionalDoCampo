@@ -93,13 +93,15 @@ export function emptyTrophies(): TrophyCounts {
     roy: 0,
     reiAmerica: 0,
     worldCups: 0,
+    olympicRuns: 0,
     euroTitles: 0,
   };
 }
 
 export function freshCareer(): CareerState {
   return {
-    age: 18,
+    age: 16,
+    calendarYear: 2016,
     season: 1,
     leagueId: "nbb",
     clubId: "",
@@ -123,6 +125,8 @@ export function freshCareer(): CareerState {
     pendingCluPenalty: 0,
     pendingGamesMissed: 0,
     injuryShield: false,
+    injuryRisk: 0.15,
+    nationalCaps: 0,
     marketBoost: 0,
     wallet: STARTER_WALLET,
     annualSalary: 0,
@@ -153,6 +157,10 @@ export function freshState(locale: Locale = "pt"): GameState {
     activeAward: null,
     pendingEvent: null,
     awaitingOffseason: false,
+    seasonQueue: [],
+    keyGamesQueue: [],
+    pendingNational: null,
+    clutchKind: null,
     statFlash: null,
     effectToasts: [],
   };
@@ -172,9 +180,10 @@ export function computeOverall(
 }
 
 export function ageFactor(age: number): number {
-  // Young players still ramp up, but not so hard that club tables collapse
-  if (age <= 21) return 0.82 + (age - 18) * 0.05;
-  if (age <= 27) return 0.92 + (age - 21) * 0.013;
+  // Age 16–18 ramp; still contribute enough that franchise isn't tanked
+  if (age <= 18) return 0.78 + (age - 16) * 0.06;
+  if (age <= 21) return 0.9 + (age - 18) * 0.03;
+  if (age <= 27) return 0.96 + (age - 21) * 0.007;
   if (age <= 31) return 1.0;
   return Math.max(0.35, 1.0 - (age - 31) * 0.055);
 }
@@ -278,14 +287,14 @@ function simulateStandings(
   const games = leagueId === "nba" ? 82 : 34;
   const rows = league.clubs.map((club) => {
     const isPlayer = club.id === playerClubId;
-    const formNudge = clamp((playerPerf - 58) / 5, -5, 8);
+    const formNudge = clamp((playerPerf - 55) / 6, -3, 9);
     const strength = isPlayer
       ? clamp(
-          club.strength + formNudge * 0.55,
-          club.strength - 4,
-          Math.min(98, club.strength + 9),
+          club.strength + formNudge * 0.4,
+          club.strength - 2,
+          Math.min(98, club.strength + 10),
         )
-      : club.strength + rand(-3.5, 3.5);
+      : club.strength + rand(-3, 3);
     const winPct = clamp((strength - 52) / 48, 0.18, 0.82);
     const wins = Math.round(games * winPct + rand(-2, 2));
     const w = clamp(wins, 4, games - 2);

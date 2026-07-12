@@ -46,7 +46,11 @@ export function JourneyKickoff() {
           {career.clubName}
         </p>
         <p className="mt-0.5 font-sans text-xs text-white/45">
-          {tr(league.nameKey)} · {tr("dash.season")} {career.season}
+          {tr(league.nameKey)} ·{" "}
+          {tr("journey.year", {
+            season: career.season,
+            year: career.calendarYear ?? 2016,
+          })}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="rounded-lg border border-white/10 px-2.5 py-2">

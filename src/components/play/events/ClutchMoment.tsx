@@ -347,7 +347,13 @@ function ClutchMomentInner() {
       {clutch.phase === "result" && (
         <div className="mt-4 w-full max-w-sm shrink-0 rounded-xl border border-arena-accent/50 bg-arena-panel p-4">
           <p className="font-display text-3xl uppercase text-arena-accent">
-            {clutch.winsGame ? tr("clutch.win") : tr("clutch.lose")}
+            {state.clutchKind === "key_game"
+              ? clutch.winsGame
+                ? tr("key.win")
+                : tr("key.lose")
+              : clutch.winsGame
+                ? tr("clutch.win")
+                : tr("clutch.lose")}
           </p>
           <p className="mt-1 text-sm text-white/55">
             {noteLabel(clutch.lastNote, tr)}

@@ -20,7 +20,9 @@ export function FinalsPrompt() {
       <p className="mt-4 font-display text-2xl text-white/80">
         {state.career?.clubName}{" "}
         <span className="text-white/40">{tr("finals.vs")}</span>{" "}
-        {finals.opponentName}
+        {finals.opponentName.startsWith("key.")
+          ? tr(finals.opponentName)
+          : finals.opponentName}
       </p>
       <div className="mt-6 rounded-2xl border border-brand-yellow/40 bg-arena-panel px-8 py-4">
         <p className="font-display text-5xl text-brand-yellow">

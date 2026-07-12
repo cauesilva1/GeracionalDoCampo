@@ -20,26 +20,43 @@ export function recoverHydratedState(state: GameState): GameState {
 
   // In-flight "Simulando…" never survives a refresh (timer is in-memory only)
   if (next.centerView === "simulating") {
-    if (next.career && !next.career.lastSeason) {
-      next = {
-        ...next,
-        centerView: "journey",
-        pendingEvent: null,
-        awaitingOffseason: false,
-      };
-    } else {
-      next = {
-        ...next,
-        centerView: "season",
-        awaitingOffseason: next.awaitingOffseason ?? true,
-      };
-    }
+    const hadPriorSeason = !!next.career?.lastSeason;
+    next = {
+      ...next,
+      centerView: hadPriorSeason ? "season" : "journey",
+      pendingEvent: null,
+      awaitingOffseason: hadPriorSeason,
+      seasonQueue: [],
+      keyGamesQueue: [],
+      clutch: null,
+      clutchKind: null,
+    };
   }
 
-  // Career started but no season played yet → destination card, never mid-events
+  // National call-up without payload → offseason or season
+  if (next.centerView === "national_callup" && !next.pendingNational) {
+    next = {
+      ...next,
+      centerView: next.career?.lastSeason ? "season" : "journey",
+      awaitingOffseason: next.awaitingOffseason ?? true,
+    };
+  }
+
+  // Mid-season in progress (queue / clutch / mid dilemma) — keep it
+  const midSeasonLive =
+    (next.seasonQueue?.length ?? 0) > 0 ||
+    (next.keyGamesQueue?.length ?? 0) > 0 ||
+    !!next.clutch ||
+    next.centerView === "mid_event" ||
+    next.centerView === "clutch" ||
+    next.centerView === "simulating" ||
+    next.centerView === "national_callup";
+
+  // Career started but season never launched → destination card
   if (
     next.career &&
     !next.career.lastSeason &&
+    !midSeasonLive &&
     (next.phase === "career" || next.phase === "transfers") &&
     next.centerView !== "journey"
   ) {

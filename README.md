@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Lenda da Quadra
 
-## Getting Started
+**Português** · [English](README.en.md) · [Español](README.es.md)
 
-First, run the development server:
+Simulador de carreira de basquete no navegador. Você rouba atributos de lendas da NBA no draft, cresce na liga do seu país e luta para chegar à EuroLeague e à NBA — com decisões que pesam e momentos jogáveis.
+
+**Jogar:** [/play](https://github.com/cauesilva1/LendaDaQuadra) · idiomas: PT / EN / ES
+
+---
+
+## O que você faz
+
+1. **Draft de atributos** — escolhe stats de lendas (seu teto de carreira)
+2. **How-to** — card rápido antes do draft explicando o loop
+3. **Temporada** — 3 jogos-chave jogáveis (estilo Crunch Time) + dilema + simulação
+4. **Off-season** — treino, clínica ou streetball (risco de lesão ligado ao ATL do draft)
+5. **Seleção** — convocações para Copa do Mundo e Olimpíadas
+6. **Meta** — seleção → Euro → NBA, começando com **16 anos em 2016**
+
+Progressão, classificação e scout bar pensados para não ficar preso em OVR baixo nem sempre em último na tabela.
+
+---
+
+## Stack
+
+- **Next.js** (App Router) · **React** · **TypeScript**
+- **Tailwind CSS** · **Framer Motion** · **Lucide**
+- Persistência em `localStorage` (save `lenda-da-quadra-v7`)
+
+---
+
+## Rodar local
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra [http://localhost:3000](http://localhost:3000). Carreira: `/play` (ou `/en/play`, `/es`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build   # build de produção
+npm start       # servir o build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Estrutura (resumo)
 
-To learn more about Next.js, take a look at the following resources:
+| Área | Onde |
+|------|------|
+| UI da carreira | `src/components/play/` |
+| Estado / simulação | `src/hooks/useGameSimulation.tsx` |
+| Calendário / seleção | `src/lib/calendar.ts` |
+| Jogos-chave | `src/lib/keyGames.ts`, `src/lib/seasonFlow.ts` |
+| Lesão (ATL) | `src/lib/injury.ts` |
+| Textos / i18n | `src/lib/i18n/dictionary.ts` |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Licença
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Uso pessoal / portfólio — veja o repositório para detalhes.

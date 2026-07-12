@@ -30,6 +30,7 @@ export type Currency = "BRL" | "EUR" | "AUD" | "USD" | "CNY";
 
 export type GamePhase =
   | "setup"
+  | "howto"
   | "draft"
   | "reveal"
   | "career"
@@ -49,7 +50,27 @@ export type CenterView =
   | "offseason_event"
   | "simulating"
   | "journey"
+  | "national_callup"
   | "idle";
+
+export type FinalsCompetition =
+  | "conference"
+  | "league"
+  | "nba"
+  | "world_cup"
+  | "olympics"
+  | "key_game";
+
+export type SeasonBeat = "key_game" | "mid" | "sim";
+
+export type NationalCallup = {
+  kind: "world_cup" | "olympics";
+  year: number;
+  titleKey: string;
+  bodyKey: string;
+  /** Soft minutes path vs star path */
+  minutesLikely: boolean;
+};
 
 export type AwardId =
   | "rei_america"
@@ -57,12 +78,6 @@ export type AwardId =
   | "nba_mvp"
   | "dpoy"
   | "roy";
-
-export type FinalsCompetition =
-  | "conference"
-  | "league"
-  | "nba"
-  | "world_cup";
 
 export type AttrWeights = Record<AttrKey, number>;
 export type AttrStats = Record<AttrKey, number>;
@@ -259,6 +274,8 @@ export interface TrophyCounts {
   roy: number;
   reiAmerica: number;
   worldCups: number;
+  /** Olympic basketball medals / campaigns */
+  olympicRuns: number;
   /** EuroLeague / Final Four elite titles */
   euroTitles: number;
 }
@@ -290,6 +307,8 @@ export interface FinalsContext {
   deficit: number;
   winChanceOnSkip: number;
   franchiseStrength: number;
+  /** Present for in-season key games */
+  keyKind?: "rival" | "ranking" | "showcase";
 }
 
 export type CourtZoneKind = "three" | "mid" | "paint";
@@ -332,6 +351,8 @@ export interface ClutchState {
 
 export interface CareerState {
   age: number;
+  /** Calendar year (starts 2016) — drives World Cup / Olympics */
+  calendarYear: number;
   season: number;
   leagueId: LeagueId;
   clubId: string;
@@ -362,6 +383,10 @@ export interface CareerState {
   pendingGamesMissed: number;
   /** Next season: light injuries neutralized */
   injuryShield: boolean;
+  /** 0.05–0.32 from draft ATH — drives street / mid injury odds */
+  injuryRisk: number;
+  /** National team caps */
+  nationalCaps: number;
   /** Temporary boost to FA / Euro offer quality */
   marketBoost: number;
   /** Fictitious career cash / market wallet */
@@ -407,6 +432,14 @@ export interface GameState {
   pendingEvent: SeasonEvent | null;
   /** After sim, wait for offseason before next advance */
   awaitingOffseason: boolean;
+  /** In-season beat queue: key games → mid → sim */
+  seasonQueue: SeasonBeat[];
+  /** Queued key-game contexts for clutch */
+  keyGamesQueue: FinalsContext[];
+  /** National team invitation pending after season */
+  pendingNational: NationalCallup | null;
+  /** Whether active clutch is a finals or in-season key game */
+  clutchKind: "finals" | "key_game" | null;
   /** Temporary attribute deltas for sidebar flash (+2 ARR) */
   statFlash: Partial<Record<AttrKey, number>> | null;
   /** High-contrast impact toasts in the center column */

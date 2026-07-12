@@ -11,6 +11,7 @@ import {
   NBA_DRAFT_OVR,
 } from "@/lib/data";
 import { completeStats } from "@/lib/progression";
+import { injuryTier, streetRiskPct } from "@/lib/injury";
 import { getLeague, liveStats } from "@/lib/simulation";
 import { formatMoney } from "@/lib/utils";
 import { useGameActions, useGameState } from "@/hooks/useGameSimulation";
@@ -144,6 +145,21 @@ export function PlayerProfile() {
             <span className="text-white/70">{career.rivalClubName}</span>
           </p>
         )}
+        <div className="mt-1.5 rounded-lg border border-white/10 bg-arena-bg/40 px-2 py-1.5">
+          <p className="font-sans text-[9px] font-medium uppercase tracking-wider text-white/40">
+            {tr("dash.injury")}
+          </p>
+          <p className="mt-0.5 font-sans text-[11px] text-white/70">
+            {tr(`dash.injury.${injuryTier(career.injuryRisk ?? 0.15)}`)}
+            <span className="text-white/40">
+              {" "}
+              · {streetRiskPct(career.injuryRisk ?? 0.15)}%
+            </span>
+          </p>
+          <p className="mt-0.5 font-sans text-[9px] text-white/35">
+            {tr("dash.injury.hint")}
+          </p>
+        </div>
       </div>
 
       <div className="rounded-xl border border-white/10 bg-arena-panel p-2.5">

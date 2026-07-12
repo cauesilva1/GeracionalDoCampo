@@ -38,7 +38,8 @@ export function loadGameState(): GameState | null {
   try {
     const raw =
       localStorage.getItem(STORAGE_KEY) ??
-      localStorage.getItem(STORAGE_KEY_LEGACY);
+      localStorage.getItem(STORAGE_KEY_LEGACY) ??
+      localStorage.getItem("lenda-da-quadra-v5");
     if (!raw) return null;
     const parsed = JSON.parse(raw) as GameState;
     if (!parsed?.phase) return null;

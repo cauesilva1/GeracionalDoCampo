@@ -18,16 +18,16 @@ import type {
 } from "@/types/game";
 
 const POS_START_BAND: Record<PositionId, [number, number]> = {
-  PG: [58, 66],
-  SG: [57, 65],
-  SF: [58, 66],
-  PF: [56, 65],
-  C: [55, 64],
+  PG: [54, 62],
+  SG: [53, 61],
+  SF: [54, 62],
+  PF: [52, 61],
+  C: [52, 60],
 };
 
-/** Hard lock — every starter attr sits in [55, 68] regardless of legend ceiling. */
-const START_ATTR_MIN = 55;
-const START_ATTR_MAX = 68;
+/** Age-16 starters — lower floor, room to climb into the 70s. */
+const START_ATTR_MIN = 50;
+const START_ATTR_MAX = 64;
 
 function roughOvr(stats: AttrStats, posId: PositionId): number {
   const weights = POSITION_WEIGHTS[posId];
@@ -51,8 +51,8 @@ export function completeStats(
 }
 
 /**
- * Rookie start — each attr rigidly locked 55–68.
- * maxStats only shapes relative strengths inside that band + future growth speed.
+ * Rookie start at 16 — attrs locked in the teen band.
+ * maxStats shapes relative strengths + future growth speed.
  */
 export function createStarterStats(
   posId: PositionId,
@@ -62,7 +62,7 @@ export function createStarterStats(
   const [lo, hi] = POS_START_BAND[posId];
   const targetOvr = lo + Math.floor(rand(0, hi - lo + 1));
 
-  // Map ceiling → band: higher legend attr → closer to 68, never outside 55–68
+  // Map ceiling → band: higher legend attr → closer to max, never outside band
   const starter = {} as AttrStats;
   for (const a of ATTRS) {
     const ceilingFactor = clamp((max[a.k] - 40) / 59, 0, 1);
@@ -101,14 +101,15 @@ export function growTowardMax(
 ): AttrStats {
   const cur = completeStats(current);
   const max = completeStats(maxStats, 80);
-  // Young window needs enough bumps to reach draft OVR before age gate
-  const bumps = age <= 21 ? 4 : age <= 24 ? 3 : age <= 28 ? 2 : age <= 31 ? 1 : 0;
+  // Teen window needs aggressive bumps so Euro/NBA stay reachable
+  const bumps =
+    age <= 18 ? 5 : age <= 21 ? 4 : age <= 24 ? 3 : age <= 28 ? 2 : age <= 31 ? 1 : 0;
   const keys = shuffleKeys();
   let left = bumps;
   for (const k of keys) {
     if (left <= 0) break;
     if (cur[k] >= max[k]) continue;
-    const gain = 1 + (Math.random() < 0.18 ? 1 : 0);
+    const gain = 1 + (Math.random() < 0.28 ? 1 : 0);
     cur[k] = clamp(cur[k] + gain, 0, max[k]);
     left--;
   }
@@ -466,6 +467,49 @@ const MID_EVENTS: Omit<SeasonEvent, "id">[] = [
         id: "sleep",
         labelKey: "event.mid.extra.b",
         effects: [{ type: "energy", value: 6 }],
+      },
+    ],
+  },
+  {
+    kind: "mid",
+    titleKey: "event.mid.viral.title",
+    bodyKey: "event.mid.viral.body",
+    options: [
+      {
+        id: "post_it",
+        labelKey: "event.mid.viral.a",
+        effects: [
+          { type: "market_boost", value: 1 },
+          { type: "season_attr", attr: "clu", value: 1 },
+        ],
+      },
+      {
+        id: "stay_quiet",
+        labelKey: "event.mid.viral.b",
+        effects: [{ type: "season_attr", attr: "def", value: 2 }],
+      },
+    ],
+  },
+  {
+    kind: "mid",
+    titleKey: "event.mid.agent.title",
+    bodyKey: "event.mid.agent.body",
+    options: [
+      {
+        id: "push_nba",
+        labelKey: "event.mid.agent.a",
+        effects: [
+          { type: "market_boost", value: 2 },
+          { type: "chemistry", value: -1 },
+        ],
+      },
+      {
+        id: "loyalty",
+        labelKey: "event.mid.agent.b",
+        effects: [
+          { type: "chemistry", value: 2 },
+          { type: "energy", value: 4 },
+        ],
       },
     ],
   },
