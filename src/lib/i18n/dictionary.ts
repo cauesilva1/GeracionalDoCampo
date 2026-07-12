@@ -1,4 +1,5 @@
 import type { Locale } from "@/types/game";
+import { MGR_I18N } from "@/lib/i18n/managerOverlay";
 
 type Dict = Record<string, string>;
 
@@ -2252,7 +2253,11 @@ export function t(
   key: string,
   vars?: Record<string, string | number>,
 ): string {
-  const raw = DICTIONARIES[locale][key] ?? DICTIONARIES.pt[key] ?? key;
+  const raw =
+    MGR_I18N[locale][key] ??
+    DICTIONARIES[locale][key] ??
+    DICTIONARIES.pt[key] ??
+    key;
   if (!vars) return raw;
   return Object.entries(vars).reduce(
     (s, [k, v]) => s.replaceAll(`{${k}}`, String(v)),

@@ -1,18 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  /* Unified arena identity — no legacy black/neon yellow */
-  --brand-bg: #0a0f1d;
-  --brand-black: #111827;
-  --brand-yellow: #ff7a00;
-  --brand-green: #00a859;
-  --brand-green-bright: #00c46a;
-  --brand-text: #f5f5f5;
-  --arena-bg: #0a0f1d;
-  --arena-accent: #ff7a00;
-  --arena-buzzer: #ff3b30;
-  --arena-panel: #111827;
-  --arena-slate: #1e293b;
+  /* Stadium night — turf green + gold chalk + endzone red */
+  --brand-bg: #07140f;
+  --brand-black: #0c1a14;
+  --brand-yellow: #e8c547;
+  --brand-green: #2d7a48;
+  --brand-green-bright: #3d9b5f;
+  --brand-text: #f2f5f0;
+  --arena-bg: #07140f;
+  --arena-accent: #e8c547;
+  --arena-buzzer: #c41e3a;
+  --arena-panel: #0f2218;
+  --arena-slate: #163024;
+  --field-line: #dce8d8;
 }
 
 @theme inline {
@@ -27,8 +28,9 @@
   --color-arena-buzzer: var(--arena-buzzer);
   --color-arena-panel: var(--arena-panel);
   --color-arena-slate: var(--arena-slate);
-  --font-sans: var(--font-inter);
-  --font-display: var(--font-bebas);
+  --color-field-line: var(--field-line);
+  --font-sans: var(--font-sans-face);
+  --font-display: var(--font-display-face);
 }
 
 @keyframes fadeIn {
@@ -76,25 +78,25 @@
   0%,
   100% {
     box-shadow:
-      0 0 24px rgba(255, 122, 0, 0.35),
-      0 0 48px rgba(255, 59, 48, 0.2);
+      0 0 24px rgba(232, 197, 71, 0.3),
+      0 0 48px rgba(45, 122, 72, 0.2);
   }
   50% {
     box-shadow:
-      0 0 36px rgba(255, 122, 0, 0.55),
-      0 0 64px rgba(255, 59, 48, 0.35);
+      0 0 36px rgba(232, 197, 71, 0.5),
+      0 0 64px rgba(45, 122, 72, 0.35);
   }
 }
 
 @keyframes buzzerPulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.35);
-    background-color: rgba(255, 59, 48, 0.12);
+    box-shadow: 0 0 0 0 rgba(196, 30, 58, 0.35);
+    background-color: rgba(196, 30, 58, 0.12);
   }
   50% {
-    box-shadow: 0 0 28px 4px rgba(255, 59, 48, 0.5);
-    background-color: rgba(255, 59, 48, 0.22);
+    box-shadow: 0 0 28px 4px rgba(196, 30, 58, 0.5);
+    background-color: rgba(196, 30, 58, 0.22);
   }
 }
 
@@ -111,22 +113,17 @@
 }
 
 @utility font-display {
-  font-family: var(--font-bebas), "Oswald", system-ui, sans-serif;
+  font-family: var(--font-display-face), "Oswald", system-ui, sans-serif;
+  letter-spacing: 0.04em;
 }
 
 body {
   background: var(--arena-bg);
   color: var(--brand-text);
   font-family: var(--font-inter), system-ui, sans-serif;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-  }
+::selection {
+  background: rgba(232, 197, 71, 0.35);
+  color: #fff;
 }

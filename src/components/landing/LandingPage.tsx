@@ -1,16 +1,182 @@
 "use client";
 
 import Link from "next/link";
-import { BasketballCourtLines } from "@/components/landing/BasketballCourtLines";
-import { HallLeaderboard } from "@/components/landing/HallLeaderboard";
 import { SiteHeader } from "@/components/landing/SiteHeader";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 import { playHref } from "@/lib/i18n";
 import { t } from "@/lib/i18n/dictionary";
-import { LANDING_TIERS, legacyTheme } from "@/lib/legacyTheme";
+import {
+  coachLegacyTheme,
+  LANDING_COACH_TIERS,
+} from "@/lib/manager/coachTheme";
 import type { Locale } from "@/types/game";
 
-function TierPreviewCard({
+/** Turf + tactical board + coach silhouette — unique art per tier. */
+function CoachCardArt({
+  accent,
+  tier,
+}: {
+  accent: string;
+  tier: string;
+}) {
+  const stars =
+    tier === "legend" ? 3 : tier === "elite" ? 2 : tier === "contender" ? 1 : 0;
+
+  return (
+    <svg
+      aria-hidden
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      viewBox="0 0 180 240"
+      fill="none"
+    >
+      <defs>
+        <linearGradient id={`turf-${tier}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={accent} stopOpacity="0.08" />
+          <stop offset="55%" stopColor={accent} stopOpacity="0.03" />
+          <stop offset="100%" stopColor="#000" stopOpacity="0.35" />
+        </linearGradient>
+        <linearGradient id={`glow-${tier}`} x1="0.5" y1="0" x2="0.5" y2="1">
+          <stop offset="0%" stopColor={accent} stopOpacity="0.45" />
+          <stop offset="100%" stopColor={accent} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      {/* Night stadium wash */}
+      <rect width="180" height="240" fill={`url(#turf-${tier})`} />
+      <ellipse cx="90" cy="0" rx="90" ry="70" fill={`url(#glow-${tier})`} />
+
+      {/* Perspective pitch */}
+      <g opacity="0.55" stroke={accent} strokeWidth="1.1">
+        <path
+          d="M22 168 L158 168 L148 98 L32 98 Z"
+          fill={`${accent}10`}
+          strokeLinejoin="round"
+        />
+        <path d="M90 98 L90 168" />
+        <ellipse cx="90" cy="133" rx="16" ry="9" fill="none" />
+        <path d="M48 98 L52 112 L128 112 L132 98" />
+        <path d="M58 168 L62 152 L118 152 L122 168" />
+        {/* Yard / grass stripes */}
+        {[110, 122, 134, 146, 158].map((y) => (
+          <path
+            key={y}
+            d={`M${28 + (y - 98) * 0.08} ${y} L${152 - (y - 98) * 0.08} ${y}`}
+            opacity="0.35"
+            strokeWidth="0.7"
+          />
+        ))}
+      </g>
+
+      {/* Tactical chalkboard plate */}
+      <g transform="translate(28, 52)">
+        <rect
+          x="0"
+          y="0"
+          width="124"
+          height="72"
+          rx="4"
+          fill="#0a120e"
+          stroke={accent}
+          strokeOpacity="0.55"
+          strokeWidth="1.2"
+        />
+        <rect
+          x="4"
+          y="4"
+          width="116"
+          height="64"
+          rx="2"
+          fill="#0f1c14"
+          stroke={accent}
+          strokeOpacity="0.2"
+        />
+        {/* Formation 4-3-3 dots */}
+        <g fill={accent}>
+          {/* GK */}
+          <circle cx="62" cy="58" r="3.2" opacity="0.9" />
+          {/* DEF */}
+          {[28, 48, 76, 96].map((x) => (
+            <circle key={`d${x}`} cx={x} cy="44" r="2.8" opacity="0.85" />
+          ))}
+          {/* MID */}
+          {[38, 62, 86].map((x) => (
+            <circle key={`m${x}`} cx={x} cy="28" r="2.8" opacity="0.9" />
+          ))}
+          {/* ATT */}
+          {[32, 62, 92].map((x) => (
+            <circle key={`a${x}`} cx={x} cy="12" r="3" />
+          ))}
+          {/* Links */}
+          <g stroke={accent} strokeWidth="0.8" opacity="0.35" fill="none">
+            <path d="M62 58 L48 44 M62 58 L76 44" />
+            <path d="M48 44 L38 28 M76 44 L86 28 M62 44 L62 28" />
+            <path d="M38 28 L32 12 M62 28 L62 12 M86 28 L92 12" />
+          </g>
+        </g>
+        {/* Chalk scribble */}
+        <path
+          d="M10 62 Q20 56 28 62"
+          stroke={accent}
+          strokeOpacity="0.25"
+          strokeWidth="0.8"
+          fill="none"
+        />
+      </g>
+
+      {/* Coach silhouette on the touchline */}
+      <g transform="translate(118, 145)" fill={accent} opacity="0.72">
+        {/* Legs */}
+        <path d="M8 52 L4 72 L10 72 L12 56 L16 72 L22 72 L16 52 Z" />
+        {/* Coat */}
+        <path d="M5 22 L3 50 L25 50 L21 22 C19 16 9 16 5 22 Z" />
+        {/* Arm + clipboard */}
+        <path d="M21 26 L34 30 L33 36 L20 34 Z" opacity="0.9" />
+        <rect x="30" y="28" width="12" height="14" rx="1" opacity="0.85" />
+        <path
+          d="M32 31 H40 M32 34 H39 M32 37 H38"
+          stroke="#05150c"
+          strokeWidth="0.7"
+          opacity="0.5"
+        />
+        {/* Head */}
+        <circle cx="13" cy="14" r="7" />
+        {/* Cap / flat visor */}
+        <path d="M6 12 L13 8 L22 12 L20 14 L6 14 Z" opacity="0.95" />
+      </g>
+
+      {/* Stars / trophies for higher tiers */}
+      {stars > 0 && (
+        <g transform="translate(18, 198)" fill={accent}>
+          {Array.from({ length: stars }).map((_, i) => (
+            <path
+              key={i}
+              transform={`translate(${i * 18}, 0) scale(0.85)`}
+              d="M10 0 L12.2 6.5 L19 7 L14 11.5 L15.5 18 L10 14.5 L4.5 18 L6 11.5 L1 7 L7.8 6.5 Z"
+              opacity={0.55 + i * 0.15}
+            />
+          ))}
+        </g>
+      )}
+
+      {tier === "legend" && (
+        <g transform="translate(138, 40)" fill={accent} opacity="0.85">
+          {/* Mini cup */}
+          <path d="M6 8 H18 V14 C18 19 14 22 12 22 C10 22 6 19 6 14 Z" />
+          <path
+            d="M6 10 C2 10 2 16 6 15 M18 10 C22 10 22 16 18 15"
+            stroke={accent}
+            strokeWidth="1.2"
+            fill="none"
+          />
+          <rect x="9" y="22" width="6" height="3" rx="0.5" />
+          <rect x="7" y="25" width="10" height="2.5" rx="0.5" />
+        </g>
+      )}
+    </svg>
+  );
+}
+
+function CoachTierCard({
   locale,
   ovr,
   tier,
@@ -19,76 +185,90 @@ function TierPreviewCard({
   ovr: number;
   tier: string;
 }) {
-  const theme = legacyTheme(tier);
-  const isGoat = tier === "goat";
+  const theme = coachLegacyTheme(tier);
+  const isLegend = tier === "legend";
 
   return (
     <article
-      className="relative w-full overflow-hidden rounded-[16px] sm:w-[186px] sm:rounded-[18px]"
+      className="group relative w-full overflow-hidden rounded-[18px] transition-transform duration-300 hover:-translate-y-1 sm:w-[190px]"
       style={{
-        boxShadow: `0 14px 32px rgba(0,0,0,0.42), 0 0 0 1px ${theme.accent}33, 0 0 24px ${theme.glow}`,
+        boxShadow: `0 16px 36px rgba(0,0,0,0.5), 0 0 0 1px ${theme.accent}40, 0 0 28px ${theme.glow}`,
       }}
     >
       <div
         className="relative aspect-[3/4] overflow-hidden"
         style={{
-          background: `linear-gradient(165deg, ${theme.bg1} 0%, ${theme.bg0} 48%, #05070c 100%)`,
+          background: `linear-gradient(175deg, ${theme.bg1} 0%, ${theme.bg0} 42%, #030a07 100%)`,
         }}
       >
-        <BasketballCourtLines color={theme.accent} />
+        <CoachCardArt accent={theme.accent} tier={tier} />
+
+        {/* Soft vignette so text stays readable */}
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-24 opacity-70"
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
           style={{
-            background: `radial-gradient(ellipse at 50% 0%, ${theme.accentSoft}, transparent 70%)`,
+            background:
+              "linear-gradient(180deg, rgba(0,0,0,0.15) 0%, transparent 28%, transparent 52%, rgba(0,0,0,0.72) 78%, rgba(0,0,0,0.88) 100%)",
           }}
         />
+
         <div
           className="absolute inset-y-0 left-0 w-[3px]"
           style={{ background: theme.accent }}
         />
 
-        <div className="relative flex h-full flex-col px-3 pb-3 pt-2.5 text-left sm:px-3.5 sm:pb-3.5 sm:pt-3">
-          <div className="flex items-start justify-between gap-1.5">
-            <p className="font-sans text-[7px] font-medium uppercase tracking-[0.28em] text-white/40 sm:text-[8px]">
-              Lenda
-            </p>
+        <div className="relative flex h-full flex-col px-3.5 pb-3.5 pt-3 text-left">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-sans text-[7px] font-medium uppercase tracking-[0.3em] text-white/40 sm:text-[8px]">
+                {t(locale, "hero.title2")}
+              </p>
+              <span
+                className={`mt-1.5 inline-block rounded-sm px-1.5 py-0.5 font-sans text-[7px] font-semibold uppercase tracking-[0.16em] sm:text-[8px] ${theme.ribbonClass}`}
+              >
+                {isLegend
+                  ? "MAX"
+                  : tier === "elite"
+                    ? "TOP"
+                    : tier === "contender"
+                      ? "RISE"
+                      : "PATH"}
+              </span>
+            </div>
             <div className="text-right">
               <p
-                className={`font-display text-[36px] leading-none tracking-tight sm:text-[50px] ${theme.ovrClass}`}
+                className={`font-display text-[40px] leading-none tracking-tight sm:text-[52px] ${theme.ovrClass}`}
                 style={
-                  isGoat ? { textShadow: `0 0 24px ${theme.glow}` } : undefined
+                  isLegend
+                    ? { textShadow: `0 0 28px ${theme.glow}` }
+                    : { textShadow: `0 0 16px ${theme.glow}` }
                 }
               >
                 {ovr}
               </p>
-              <p className="mt-0.5 font-sans text-[7px] uppercase tracking-[0.22em] text-white/35 sm:text-[8px]">
+              <p className="mt-0.5 font-sans text-[7px] uppercase tracking-[0.24em] text-white/40 sm:text-[8px]">
                 OVR
               </p>
             </div>
           </div>
 
-          <div className="mt-auto">
-            <span
-              className={`inline-block rounded-sm px-1.5 py-0.5 font-sans text-[7px] font-semibold uppercase tracking-[0.18em] sm:text-[8px] ${theme.ribbonClass}`}
-            >
-              {isGoat ? "99 · Elite" : tier === "allstar" ? "Star" : "Career"}
-            </span>
+          <div className="mt-auto pt-16 sm:pt-20">
             <h3
-              className={`mt-1.5 font-display text-[15px] uppercase leading-[0.95] tracking-wide sm:text-[20px] ${theme.titleClass}`}
+              className={`font-display text-[16px] uppercase leading-[0.95] tracking-wide sm:text-[21px] ${theme.titleClass}`}
             >
-              {t(locale, `tier.${tier}`)}
+              {t(locale, `mgr.legacy.tier.${tier}`)}
             </h3>
-            <p className="mt-1 line-clamp-3 font-sans text-[9px] leading-relaxed text-white/45 sm:mt-1.5 sm:text-[11px]">
-              {t(locale, `tier.${tier}.desc`)}
+            <p className="mt-1.5 line-clamp-3 font-sans text-[9px] leading-relaxed text-white/50 sm:text-[11px]">
+              {t(locale, `mgr.legacy.tier.${tier}.desc`)}
             </p>
+            <div
+              className="mt-2.5 h-px w-full opacity-60"
+              style={{
+                background: `linear-gradient(90deg, ${theme.accent}, transparent)`,
+              }}
+            />
           </div>
-
-          <div
-            className="mt-2 h-px w-full opacity-50 sm:mt-2.5"
-            style={{
-              background: `linear-gradient(90deg, transparent, ${theme.accent}, transparent)`,
-            }}
-          />
         </div>
       </div>
     </article>
@@ -100,7 +280,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
     <div className="relative flex min-h-dvh flex-col overflow-x-hidden bg-arena-bg text-brand-text">
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(255,122,0,0.14)_0%,transparent_55%),radial-gradient(ellipse_at_80%_80%,rgba(255,59,48,0.1)_0%,transparent_45%),radial-gradient(ellipse_at_20%_70%,rgba(30,58,138,0.25)_0%,transparent_50%)]"
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_50%_0%,rgba(232,197,71,0.12)_0%,transparent_55%),radial-gradient(ellipse_at_80%_80%,rgba(196,30,58,0.12)_0%,transparent_45%),radial-gradient(ellipse_at_20%_70%,rgba(45,122,72,0.28)_0%,transparent_50%)]"
       />
       <div
         aria-hidden
@@ -114,27 +294,25 @@ export function LandingPage({ locale }: { locale: Locale }) {
 
       <SiteHeader locale={locale} compact />
 
-      {/* Hero — fits first viewport on desktop */}
-      <section className="relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center justify-center px-4 py-5 text-center sm:py-6 lg:min-h-[calc(100dvh-3.5rem)] lg:py-4">
+      <section className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col items-center justify-center px-4 py-5 text-center sm:py-6 lg:min-h-[calc(100dvh-3.5rem)] lg:py-4">
         <p className="mb-1.5 font-sans text-[10px] font-medium uppercase tracking-[0.32em] text-arena-accent sm:mb-2 sm:text-[11px]">
           {t(locale, "brand.eyebrow")}
         </p>
 
         <h1 className="mx-auto max-w-4xl font-display text-[2.45rem] leading-[0.92] tracking-wide text-white sm:text-6xl lg:text-[4.25rem]">
           {t(locale, "hero.title1")}{" "}
-          <span className="bg-gradient-to-r from-arena-accent to-arena-buzzer bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-arena-accent to-brand-green-bright bg-clip-text text-transparent">
             {t(locale, "hero.title2")}
           </span>
-          ?
         </h1>
 
         <p className="mx-auto mt-2 max-w-xl text-sm leading-snug text-white/60 sm:mt-3 sm:text-base lg:max-w-2xl">
           {t(locale, "hero.sub")}
         </p>
 
-        <div className="mt-5 grid w-full max-w-[340px] grid-cols-2 gap-2.5 sm:mt-5 sm:flex sm:max-w-4xl sm:justify-center sm:gap-4 lg:mt-4">
-          {LANDING_TIERS.map((card) => (
-            <TierPreviewCard
+        <div className="mt-5 grid w-full max-w-[360px] grid-cols-2 gap-3 sm:mt-5 sm:flex sm:max-w-4xl sm:justify-center sm:gap-4 lg:mt-4">
+          {LANDING_COACH_TIERS.map((card) => (
+            <CoachTierCard
               key={card.tier}
               locale={locale}
               ovr={card.ovr}
@@ -145,26 +323,13 @@ export function LandingPage({ locale }: { locale: Locale }) {
 
         <Link
           href={playHref(locale)}
-          className="mt-5 inline-flex items-center justify-center rounded-full bg-arena-accent px-9 py-3 font-display text-xl uppercase tracking-wide text-arena-bg shadow-[0_0_24px_rgba(255,122,0,0.35)] transition-colors duration-200 hover:bg-arena-buzzer hover:text-white sm:mt-5 sm:px-10 sm:py-3.5 sm:text-2xl lg:mt-4"
+          className="mt-5 inline-flex items-center justify-center rounded-sm bg-arena-accent px-9 py-3 font-display text-xl uppercase tracking-wide text-arena-bg shadow-[0_0_24px_rgba(232,197,71,0.35)] transition-colors duration-200 hover:bg-brand-green-bright hover:text-white sm:mt-5 sm:px-10 sm:py-3.5 sm:text-2xl lg:mt-4"
         >
-          [ {t(locale, "cta.play")} ]
+          {t(locale, "cta.play")}
         </Link>
-      </section>
-
-      {/* Hall of Fame — below the fold */}
-      <section className="relative z-10 mx-auto w-full max-w-3xl px-4 pb-10 pt-4 sm:pb-14 sm:pt-6">
-        <div className="mb-5 text-center sm:mb-6">
-          <p className="font-sans text-[10px] font-medium uppercase tracking-[0.32em] text-arena-accent">
-            Top 10
-          </p>
-          <h2 className="mt-1 font-display text-3xl uppercase tracking-wide text-white sm:text-4xl">
-            {t(locale, "hall.title")}
-          </h2>
-          <p className="mx-auto mt-1.5 max-w-md font-sans text-sm text-white/50">
-            {t(locale, "hall.sub")}
-          </p>
-        </div>
-        <HallLeaderboard locale={locale} limit={10} showMoreLink />
+        <p className="mt-2 font-mono text-[10px] text-white/35">
+          {t(locale, "mgr.realDisclaimer")}
+        </p>
       </section>
 
       <div className="relative z-10">

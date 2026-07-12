@@ -6,11 +6,9 @@ import { t } from "@/lib/i18n/dictionary";
 import type { Locale } from "@/types/game";
 
 const LINKS: { page: SitePage; key: string }[] = [
-  { page: "hall", key: "nav.hall" },
   { page: "sobre", key: "nav.about" },
   { page: "docs", key: "nav.docs" },
   { page: "privacidade", key: "nav.privacy" },
-  { page: "bug", key: "nav.bug" },
 ];
 
 export function SiteFooter({
@@ -33,13 +31,9 @@ export function SiteFooter({
             <Link
               key={page}
               href={sitePageHref(locale, page)}
-              className={`font-sans text-[10px] uppercase tracking-wider transition-colors hover:text-white ${
-                page === "bug"
-                  ? "text-arena-accent/80 hover:text-arena-accent"
-                  : "text-white/45"
-              }`}
+              className="font-sans text-[10px] uppercase tracking-wider text-white/45 transition-colors hover:text-white"
             >
-              {page === "bug" ? `🐞 ${t(locale, key)}` : t(locale, key)}
+              {t(locale, key)}
             </Link>
           ))}
         </nav>

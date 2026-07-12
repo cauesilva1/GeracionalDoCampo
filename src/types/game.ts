@@ -1,48 +1,55 @@
 export type Locale = "pt" | "en" | "es";
 
+/** Shared attribute keys across all positions (weights decide what matters). */
 export type AttrKey =
-  | "shot"
-  | "fin"
-  | "drb"
-  | "pass"
-  | "def"
-  | "reb"
-  | "ath"
-  | "clu";
+  | "thr"
+  | "car"
+  | "rec"
+  | "blk"
+  | "tkl"
+  | "cov"
+  | "awa"
+  | "ath";
 
-export type PositionId = "PG" | "SG" | "SF" | "PF" | "C";
+export type PositionId =
+  | "QB"
+  | "RB"
+  | "WR"
+  | "TE"
+  | "OL"
+  | "EDGE"
+  | "DL"
+  | "LB"
+  | "CB"
+  | "S"
+  | "K"
+  | "P";
 
 export type GameMode = "classic" | "purist";
 
-export type LeagueId =
-  | "nbb"
-  | "ncaa"
-  | "acb"
-  | "nbl"
-  | "lnb"
-  | "cba"
-  | "euro"
-  | "nba";
+/** Only USA path: college → NFL. */
+export type LeagueId = "ncaa" | "nfl";
 
-export type CountryId = "br" | "us" | "es" | "au" | "cn" | "fr";
+export type CountryId = "br" | "us" | "es" | "au" | "cn" | "fr" | "mx" | "de" | "jp" | "gb";
 
-export type Currency = "BRL" | "EUR" | "AUD" | "USD" | "CNY";
+export type Currency = "USD";
 
 export type GamePhase =
   | "setup"
+  | "origin_story"
   | "howto"
   | "draft"
   | "reveal"
   | "career"
   | "transfers"
-  | "nba_draft"
+  | "nfl_draft"
   | "legacy";
 
 export type CenterView =
   | "season"
   | "press"
   | "transfers"
-  | "nba_draft"
+  | "nfl_draft"
   | "finals_prompt"
   | "clutch"
   | "award"
@@ -50,7 +57,6 @@ export type CenterView =
   | "offseason_event"
   | "simulating"
   | "journey"
-  | "national_callup"
   | "full_game"
   | "identity"
   | "timeline"
@@ -60,27 +66,28 @@ export type CenterView =
   | "spectator"
   | "press_choice"
   | "dream"
-  | "street3x3"
-  | "allstar"
+  | "seven_on_seven"
+  | "probowl"
   | "contract_talk"
   | "idle";
 
 export type SignatureMove =
-  | "stepback"
-  | "euro"
-  | "poster"
-  | "floater"
-  | "catchshoot";
+  | "deep_ball"
+  | "slant"
+  | "spin"
+  | "juke"
+  | "bull_rush"
+  | "pick_play";
 
 export type DripStyle = "classic" | "flashy" | "street" | "minimal";
 
-export type CoachStyle = "run_gun" | "halfcourt" | "defense_first";
+export type CoachStyle = "spread" | "pro_style" | "defense_first";
 
-export type PathTrack = "pro_direct" | "ncaa" | "europe_youth";
+export type PathTrack = "ncaa";
 
 export type MuseumItem = {
   id: string;
-  kind: "shoe" | "jersey" | "medal" | "draft_pick" | "clip";
+  kind: "cleat" | "jersey" | "medal" | "draft_pick" | "clip";
   labelKey: string;
   season: number;
 };
@@ -107,8 +114,6 @@ export type DreamEvent = {
   clutchMod: number;
 };
 
-export type NationalBracketRound = "group" | "semi" | "final";
-
 export type DailyChallenge = {
   dateKey: string;
   seed: string;
@@ -129,41 +134,26 @@ export type DocumentaryLine = {
 export type FinalsCompetition =
   | "conference"
   | "league"
-  | "nba"
-  | "world_cup"
-  | "olympics"
+  | "super_bowl"
+  | "playoff"
   | "key_game";
 
 export type SeasonBeat = "key_game" | "mid" | "sim";
 
-export type NationalRole = "fringe" | "rotation" | "star";
-
-export type NationalCallup = {
-  kind: "world_cup" | "olympics";
-  year: number;
-  titleKey: string;
-  bodyKey: string;
-  /** Soft minutes path vs star path */
-  minutesLikely: boolean;
-  role?: NationalRole;
-  expectedMinutes?: number;
-};
-
 export type FullOffCall =
-  | "three"
-  | "drive"
-  | "pnr"
-  | "iso"
-  | "post"
-  | "kick";
+  | "run"
+  | "short_pass"
+  | "deep_pass"
+  | "screen"
+  | "play_action"
+  | "qb_draw";
 
-export type FullDefCall = "press" | "pack" | "switch" | "help" | "foul";
+export type FullDefCall = "blitz" | "cover2" | "man" | "zone" | "spy";
 
 export type FullPlayLog = { id: string; message: string };
 
 export interface FullGameState {
   finals: FinalsContext;
-  role: NationalRole;
   quarter: 1 | 2 | 3 | 4;
   clock: number;
   playerScore: number;
@@ -175,15 +165,16 @@ export interface FullGameState {
   lastNote: string | null;
   resolved: boolean;
   winsGame: boolean | null;
-  expectedMinutes: number;
+  /** 3-snap read+targets moment for the current commandable possession */
+  moment: ClutchState;
 }
 
 export type AwardId =
-  | "rei_america"
   | "league_mvp"
-  | "nba_mvp"
+  | "nfl_mvp"
   | "dpoy"
-  | "roy";
+  | "roy"
+  | "opoy";
 
 export type AttrWeights = Record<AttrKey, number>;
 export type AttrStats = Record<AttrKey, number>;
@@ -200,7 +191,7 @@ export type EventEffectType =
   | "next_clu_penalty"
   | "market_cost"
   | "market_boost"
-  | "ppg_penalty"
+  | "stat_penalty"
   | "games_missed"
   | "random_season_attr"
   | "injury_shield"
@@ -209,10 +200,8 @@ export type EventEffectType =
 export interface EventEffect {
   type: EventEffectType;
   attr?: AttrKey;
-  /** Second attr for perm_attr_flex (e.g. shot | drb) */
   attrAlt?: AttrKey;
   value: number;
-  /** For random_* — probability 0–1 */
   chance?: number;
 }
 
@@ -236,27 +225,24 @@ export type ImpactTone = "good" | "bad" | "warn";
 export interface ImpactToast {
   id: string;
   tone: ImpactTone;
-  /** Display key resolved via i18n */
   labelKey: string;
   vars?: Record<string, string | number>;
 }
 
-/** Temporary buffs for the current season simulation. */
 export interface SeasonMods {
-  shot: number;
-  fin: number;
-  drb: number;
-  pass: number;
-  def: number;
-  reb: number;
+  thr: number;
+  car: number;
+  rec: number;
+  blk: number;
+  tkl: number;
+  cov: number;
+  awa: number;
   ath: number;
-  clu: number;
   energy: number;
   chemistry: number;
   defConsistency: number;
-  /** Applied as −ath for the next season's first stretch */
   nextAthPenalty: number;
-  ppgPenalty: number;
+  statPenalty: number;
   gamesMissed: number;
 }
 
@@ -277,7 +263,7 @@ export interface Legend {
   nick: string;
   stats: AttrStats;
   tier: 1 | 2 | 3;
-  category: "scorer" | "playmaker" | "defender" | "athletic";
+  category: "passer" | "runner" | "receiver" | "blocker" | "rusher" | "coverage" | "specialist";
 }
 
 export interface Club {
@@ -285,6 +271,7 @@ export interface Club {
   name: string;
   short: string;
   strength: number;
+  coachStyle: CoachStyle;
 }
 
 export interface LeagueDef {
@@ -301,6 +288,7 @@ export interface CountryDef {
   id: CountryId;
   nameKey: string;
   flag: string;
+  /** Always ncaa — nationality is flavor; career is USA-only. */
   leagueId: LeagueId;
 }
 
@@ -315,18 +303,31 @@ export interface StandingRow {
 }
 
 export interface SeasonTag {
-  /** Stable award/event type for i18n + icons */
   id: string;
-  /** Unique React list key (season + uid) */
   key: string;
   rim?: boolean;
 }
 
+/** Position-flavored box; UI picks which fields to show. */
+export interface SeasonBoxStats {
+  passYds: number;
+  passTd: number;
+  ints: number;
+  rushYds: number;
+  rushTd: number;
+  receptions: number;
+  recYds: number;
+  recTd: number;
+  tackles: number;
+  sacks: number;
+  defInts: number;
+  fgMade: number;
+  fgAtt: number;
+}
+
 export interface SeasonSummary {
   gp: number;
-  ppg: number;
-  rpg: number;
-  apg: number;
+  box: SeasonBoxStats;
   rating: number;
   tags: SeasonTag[];
   champion: boolean;
@@ -335,10 +336,10 @@ export interface SeasonSummary {
   finalsMvp: boolean;
   dpoy: boolean;
   roy: boolean;
-  reiAmerica: boolean;
+  opoy: boolean;
 }
 
-export type OfferPath = "domestic" | "euro" | "nba_fa";
+export type OfferPath = "college_transfer" | "nfl_fa" | "udfa";
 
 export interface ContractOffer {
   id: string;
@@ -348,9 +349,8 @@ export interface ContractOffer {
   years: number;
   annualSalary: number;
   currency: Currency;
-  isNba: boolean;
+  isNfl: boolean;
   path: OfferPath;
-  /** Contender pay cut vs rebuild max offer */
   salaryTier: "contender" | "mid" | "rebuild";
   clubStrength: number;
 }
@@ -363,27 +363,22 @@ export interface PressItem {
   body: string;
 }
 
-export interface NbaDraftResult {
+export interface NflDraftResult {
   pick: number;
+  round: number;
   teamId: string;
   teamName: string;
 }
 
 export interface TrophyCounts {
   leagueTitles: number;
-  nbaTitles: number;
+  superBowls: number;
   mvps: number;
   finalsMvps: number;
-  allStars: number;
-  scoringTitles: number;
+  proBowls: number;
   dpoy: number;
   roy: number;
-  reiAmerica: number;
-  worldCups: number;
-  /** Olympic basketball medals / campaigns */
-  olympicRuns: number;
-  /** EuroLeague / Final Four elite titles */
-  euroTitles: number;
+  opoy: number;
 }
 
 export interface OvrHistoryPoint {
@@ -409,66 +404,110 @@ export interface FinalsContext {
   opponentStrength: number;
   playerScore: number;
   opponentScore: number;
-  /** 0 = tied, 1–2 = points behind */
   deficit: number;
   winChanceOnSkip: number;
   franchiseStrength: number;
-  /** Present for in-season key games */
   keyKind?: "rival" | "ranking" | "showcase";
-  /** Clutch endgame vs full 4-quarter command mode */
   playMode?: "clutch" | "full";
-  nationalRole?: NationalRole;
-  expectedMinutes?: number;
 }
 
-export type CourtZoneKind = "three" | "mid" | "paint";
+export type FieldZoneKind = "deep" | "intermediate" | "short" | "redzone";
 
-export interface CourtZone {
+export interface FieldZone {
   id: string;
   row: number;
   col: number;
-  kind: CourtZoneKind;
+  kind: FieldZoneKind;
   labelKey: string;
   weight: number;
 }
 
-/** Crunch Time — possession-based endgame simulator */
-export type CrunchPossession = "offense" | "defense";
 export type CrunchPhase = "playing" | "result";
-export type OffenseAction = "three" | "drive" | "kick";
-export type DefenseAction = "steal" | "contest" | "foul";
-export type CrunchAction = OffenseAction | DefenseAction;
+
+/** Position family for the read-and-click play moment. */
+export type PlayRole = "passer" | "ball" | "line" | "coverage";
+
+export type PlayTargetKind =
+  | "receiver"
+  | "gap"
+  | "route"
+  | "engage"
+  | "cover"
+  | "help";
+
+export interface PlayTarget {
+  id: string;
+  x: number;
+  y: number;
+  labelKey: string;
+  kind: PlayTargetKind;
+  correct: boolean;
+  /** 0–1 — higher = riskier even if correct */
+  risk: number;
+}
+
+export interface PlayFrame {
+  role: PlayRole;
+  formationKey: string;
+  scoutHintKey: string;
+  targets: PlayTarget[];
+  /** Soft urgency flavor for UI */
+  clockPressure: "low" | "mid" | "high";
+}
 
 export interface CrunchLogEntry {
   id: string;
   message: string;
 }
 
+/** Read + click targets — 3 snaps, no offense/defense flip per click. */
 export interface ClutchState {
   finals: FinalsContext;
   phase: CrunchPhase;
   clock: number;
   playerScore: number;
   opponentScore: number;
-  possession: CrunchPossession;
   log: CrunchLogEntry[];
   lastNote: string | null;
   resolved: boolean;
   winsGame: boolean | null;
-  /** True during OT — walk-off disabled until buzzer */
-  overtime: boolean;
+  role: PlayRole;
+  snap: number;
+  snapsTotal: number;
+  frame: PlayFrame;
+  /** Accumulated offensive yards this moment */
+  yards: number;
+  /** Defensive stops this moment */
+  stops: number;
+  /** Line pressure / sacks-ish this moment */
+  pressure: number;
+  /** Yards goal for offensive roles */
+  yardsGoal: number;
+  /** Waiting brief feedback before next frame */
+  awaitingNext: boolean;
+}
+
+/** @deprecated kept for typed leftovers in old UI — prefer PlayTarget clicks */
+export type OffenseAction = "run" | "pass" | "hail_mary";
+export type DefenseAction = "blitz" | "prevent" | "goal_line";
+export type CrunchAction = OffenseAction | DefenseAction;
+export type CrunchPossession = "offense" | "defense";
+
+export interface OriginStory {
+  id: string;
+  titleKey: string;
+  bodyKey: string;
 }
 
 export interface CareerState {
   age: number;
-  /** Calendar year (starts 2016) — drives World Cup / Olympics */
   calendarYear: number;
   season: number;
   leagueId: LeagueId;
   clubId: string;
   clubName: string;
   seasonsPlayed: number;
-  nbaSeasons: number;
+  nflSeasons: number;
   trophies: TrophyCounts;
   lastSeason: SeasonSummary | null;
   standings: StandingRow[];
@@ -476,59 +515,44 @@ export interface CareerState {
   offers: ContractOffer[];
   ovrHistory: OvrHistoryPoint[];
   perfHistory: number[];
-  nbaDraftResult: NbaDraftResult | null;
+  nflDraftResult: NflDraftResult | null;
   retired: boolean;
-  inNba: boolean;
-  /** Accumulated mid-season mods for the active year */
+  inNfl: boolean;
   seasonMods: SeasonMods;
-  /** Mid events already shown this year */
   midEventsDone: number;
-  /** Fatigue 0–100; Bahamas resets to 0 */
   fatigue: number;
-  /** Carry-over −ath from luxury vacation / marketing */
   pendingAthPenalty: number;
-  /** Carry-over −instinct (Bahamas rhythm break) */
   pendingCluPenalty: number;
-  /** Games to auto-miss at next season tip-off */
   pendingGamesMissed: number;
-  /** Next season: light injuries neutralized */
   injuryShield: boolean;
-  /** 0.05–0.32 from draft ATH — drives street / mid injury odds */
   injuryRisk: number;
-  /** National team caps */
-  nationalCaps: number;
-  /** Temporary boost to FA / Euro offer quality */
   marketBoost: number;
-  /** Fictitious career cash / market wallet */
   wallet: number;
-  /** Active deal — paid into wallet each simulated season */
   annualSalary: number;
-  /** Seasons remaining on current deal (decrements after each sim) */
   contractYearsRemaining: number;
   contractCurrency: Currency;
-  /** Persistent rival franchise for narrative press */
   rivalClubId: string | null;
   rivalClubName: string | null;
-  /** Shared seed for reproducible careers */
   careerSeed: string;
   nickname: string | null;
   signature: SignatureMove | null;
   drip: DripStyle;
   coachStyle: CoachStyle;
   pathTrack: PathTrack;
-  preferNcaa: boolean;
   mentorName: string | null;
   teammates: Teammate[];
   museum: MuseumItem[];
   unlockedLegendIds: string[];
   rivalWins: number;
   rivalLosses: number;
-  allStarCount: number;
+  proBowlCount: number;
   familyMorale: number;
   liveVoteEnabled: boolean;
   clubBudget: number;
   clutchMod: number;
   documentary: string[];
+  /** Set when non-US nationality picked an origin story. */
+  originStoryId: string | null;
 }
 
 export interface PlayerIdentity {
@@ -545,11 +569,7 @@ export interface GameState {
   draftPool: Legend[];
   draftIndex: number;
   rerollUsed: boolean;
-  /**
-   * Live attributes (grows toward maxStats).
-   */
   currentStats: Partial<AttrStats>;
-  /** Career ceiling stolen from legends in the draft */
   maxStats: Partial<AttrStats>;
   justFilledAttr: AttrKey | null;
   draftAnimating: boolean;
@@ -560,25 +580,12 @@ export interface GameState {
   awardQueue: AwardAnnouncement[];
   activeAward: AwardAnnouncement | null;
   pendingEvent: SeasonEvent | null;
-  /** After sim, wait for offseason before next advance */
   awaitingOffseason: boolean;
-  /** In-season beat queue: key games → mid → sim */
   seasonQueue: SeasonBeat[];
-  /** Queued key-game contexts for clutch */
   keyGamesQueue: FinalsContext[];
-  /** National team invitation pending after season */
-  pendingNational: NationalCallup | null;
-  /** Queued national-team games after accepting a call-up */
-  nationalGamesQueue: FinalsContext[];
-  /** Wins during the current national slate (for trophies) */
-  nationalWins: number;
-  /** Full 4-quarter playable game */
   fullGame: FullGameState | null;
-  /** Whether active clutch is a finals, key game, or national */
-  clutchKind: "finals" | "key_game" | "national" | "quick" | null;
-  /** Temporary attribute deltas for sidebar flash (+2 ARR) */
+  clutchKind: "finals" | "key_game" | "quick" | null;
   statFlash: Partial<Record<AttrKey, number>> | null;
-  /** High-contrast impact toasts in the center column */
   effectToasts: ImpactToast[];
   careerSeed: string;
   pendingPressChoice: PressChoice | null;
@@ -586,8 +593,8 @@ export interface GameState {
   spectatorDoc: DocumentaryLine[];
   dailyChallenge: DailyChallenge | null;
   identityDone: boolean;
-  /** Soft gate: first season hub highlights until dismissed */
   hubTourDone: boolean;
+  pendingOriginStory: OriginStory | null;
 }
 
 export interface LegacyTier {

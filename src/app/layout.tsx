@@ -1,24 +1,24 @@
 import type { Metadata } from "next";
-import { Bebas_Neue, Inter } from "next/font/google";
+import { Barlow, Oswald } from "next/font/google";
 import "./globals.css";
 
-const bebas = Bebas_Neue({
-  weight: "400",
+const oswald = Oswald({
   subsets: ["latin"],
-  variable: "--font-bebas",
+  variable: "--font-display-face",
   display: "swap",
 });
 
-const inter = Inter({
+const barlow = Barlow({
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-sans-face",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Lenda da Quadra — Simulador de Carreira de Basquete",
+  title: "Geracional Rebuild — Manager de Futebol",
   description:
-    "Roube atributos das lendas da NBA, domine a liga do seu país e chegue à NBA.",
+    "Escolha um clube real, monte o elenco, respeite o orçamento e reconstrua a glória.",
   icons: {
     icon: [
       { url: "/favicon.png", type: "image/png" },
@@ -36,7 +36,7 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${bebas.variable} ${inter.variable} h-full antialiased`}
+      className={`${oswald.variable} ${barlow.variable} h-full antialiased`}
     >
       <body className="min-h-full font-sans">{children}</body>
     </html>
