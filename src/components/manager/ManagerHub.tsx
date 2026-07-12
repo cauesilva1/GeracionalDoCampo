@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ClubCrest } from "@/components/manager/ClubCrest";
 import { ManagerLegacy } from "@/components/manager/ManagerLegacy";
@@ -12,13 +12,21 @@ import {
 import { ECONOMY, getClub, LEAGUES, toDisplayMoney } from "@/lib/manager/clubs";
 import { emptyTrophyCabinet } from "@/lib/manager/legacy";
 import { canBuyPlayer } from "@/lib/manager/market";
-import { sortTable } from "@/lib/manager/match";
+import {
+  boardGoalTarget,
+  isRivalryMatch,
+  matchLeanKey,
+  powersForClub,
+  sortTable,
+} from "@/lib/manager/match";
 import {
   FORMATION_SLOTS,
   type FormationId,
   type MarketListing,
   type TacticStyle,
 } from "@/types/manager";
+
+const TUTORIAL_KEY = "geracional-tutorial-v1";
 
 function money(
   eur: number,
@@ -77,6 +85,26 @@ export function ManagerHub() {
   } = useManagerActions();
 
   const [buyPreview, setBuyPreview] = useState<MarketListing | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && !localStorage.getItem(TUTORIAL_KEY)) {
+        setShowTutorial(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const dismissTutorial = () => {
+    try {
+      localStorage.setItem(TUTORIAL_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    setShowTutorial(false);
+  };
 
   const career = state.career;
   const season = state.season;
@@ -102,6 +130,7 @@ export function ManagerHub() {
   const currency = league.currency;
   const m = (eur: number) => money(eur, career.leagueId, currency);
   const myPos = table.findIndex((r) => r.clubId === career.clubId) + 1;
+  const goalTarget = boardGoalTarget(career.boardGoal, league.clubs);
   const transferBudget = career.transferBudget ?? career.budget;
   const wageBudget = career.wageBudget ?? career.wageBill * 1.2;
   const signings = career.signingsThisWindow ?? 0;
@@ -116,6 +145,46 @@ export function ManagerHub() {
       !f.played &&
       (f.homeId === career.clubId || f.awayId === career.clubId),
   );
+
+  const matchPreview = (() => {
+    if (!nextFixture || state.starters.length < 11) return null;
+    const userHome = nextFixture.homeId === career.clubId;
+    const oppId = userHome ? nextFixture.awayId : nextFixture.homeId;
+    const userP = powersForClub(
+      career.clubId,
+      career.clubId,
+      state.squad,
+      state.starters,
+      state.tactics,
+      state.aiSquads,
+      userHome,
+      career.philosophy,
+      career.ovr ?? 58,
+      oppId,
+      career.difficulty,
+    );
+    const oppP = powersForClub(
+      oppId,
+      career.clubId,
+      state.squad,
+      state.starters,
+      state.tactics,
+      state.aiSquads,
+      !userHome,
+      career.philosophy,
+      career.ovr ?? 58,
+      career.clubId,
+      career.difficulty,
+    );
+    const lean = matchLeanKey(userP.attack, oppP.defense);
+    const rivalry = isRivalryMatch(career.clubId, oppId);
+    return {
+      userAtk: Math.round(userP.attack),
+      oppDef: Math.round(oppP.defense),
+      lean,
+      rivalry,
+    };
+  })();
 
   const blocked =
     state.phase === "fired" ||
@@ -146,6 +215,8 @@ export function ManagerHub() {
                 : state.liveMatch.homeId
             ] ?? []
           }
+          aiSquads={state.aiSquads}
+          difficulty={career.difficulty}
           important={(() => {
             const oppId =
               state.liveMatch.homeId === career.clubId
@@ -158,12 +229,35 @@ export function ManagerHub() {
               (opp?.prestige ?? 0) >= 78 ||
               myPos <= 3 ||
               oppPos <= 3 ||
-              season.matchday >= season.matchdaysTotal - 2
+              season.matchday >= season.matchdaysTotal - 2 ||
+              isRivalryMatch(career.clubId, oppId)
             );
           })()}
           tr={tr}
           onDone={doFinishLiveMatch}
         />
+      )}
+
+      {showTutorial && state.phase === "hub" && (
+        <div className="mb-3 border border-arena-accent/40 bg-arena-accent/10 px-3 py-2.5">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-arena-accent">
+              {tr("mgr.tutorial.title")}
+            </p>
+            <button
+              type="button"
+              className="cursor-pointer font-mono text-[9px] uppercase text-white/40 hover:text-white"
+              onClick={dismissTutorial}
+            >
+              {tr("mgr.tutorial.dismiss")}
+            </button>
+          </div>
+          <ul className="mt-1.5 space-y-1 text-[11px] text-white/65">
+            <li>· {tr("mgr.tutorial.tip1")}</li>
+            <li>· {tr("mgr.tutorial.tip2")}</li>
+            <li>· {tr("mgr.tutorial.tip3")}</li>
+          </ul>
+        </div>
       )}
 
       {state.phase === "career_event" && state.careerEvent && (
@@ -368,6 +462,10 @@ export function ManagerHub() {
             <span className="text-white/35">DIR </span>
             {career.boardConfidence}%
           </span>
+          <span className="col-span-2 sm:col-span-1" title={tr(`mgr.goal.${career.boardGoal}`)}>
+            <span className="text-white/35">{tr("mgr.board.short")} </span>
+            #{myPos || "—"}/{goalTarget}
+          </span>
           <span>
             <span className="text-white/35">CX </span>
             {m(transferBudget)}
@@ -398,6 +496,25 @@ export function ManagerHub() {
                   {getClub(nextFixture.homeId)?.shortName} {tr("mgr.vs")}{" "}
                   {getClub(nextFixture.awayId)?.shortName}
                 </p>
+                {matchPreview && (
+                  <div className="mt-1.5 space-y-0.5 font-mono text-[9px] text-white/50">
+                    <p>
+                      {tr("mgr.preview.atk")} {matchPreview.userAtk} ·{" "}
+                      {tr("mgr.preview.oppDef")} {matchPreview.oppDef}
+                      {matchPreview.rivalry ? ` · ${tr("mgr.preview.rivalry")}` : ""}
+                    </p>
+                    <p className="text-arena-accent/90">
+                      {tr(matchPreview.lean)}
+                    </p>
+                    <p>
+                      {tr("mgr.preview.boardProg", {
+                        pos: myPos || "—",
+                        target: goalTarget,
+                        goal: tr(`mgr.goal.${career.boardGoal}`),
+                      })}
+                    </p>
+                  </div>
+                )}
                 <Button
                   className="mt-2 w-full"
                   onClick={doPlayMatch}
@@ -419,24 +536,41 @@ export function ManagerHub() {
             ) : (
               <p className="text-center text-xs text-white/40">—</p>
             )}
-            {season.lastResult && state.phase !== "match_live" && (
-              <div className="mt-2 border-t border-white/10 pt-2 text-center">
-                <p className="font-display text-arena-accent">
-                  {tr(season.lastResult.summaryKey)}{" "}
-                  {season.lastResult.homeGoals}–{season.lastResult.awayGoals}
-                </p>
-                <p className="mt-0.5 font-mono text-[9px] text-white/40">
-                  {season.lastResult.events
-                    .filter((e) => e.kind === "goal")
-                    .slice(0, 4)
-                    .map(
-                      (e) =>
-                        `${e.minute}' ${e.playerName ?? tr(e.textKey)}`,
-                    )
-                    .join(" · ")}
-                </p>
-              </div>
-            )}
+            {season.lastResult && state.phase !== "match_live" && (() => {
+              const lr = season.lastResult!;
+              const homeC = getClub(lr.homeId);
+              const awayC = getClub(lr.awayId);
+              return (
+                <div className="mt-2 border-t border-white/10 pt-2 text-center">
+                  <p className="font-display text-arena-accent">
+                    {homeC?.shortName ?? "?"} {lr.homeGoals}–{lr.awayGoals}{" "}
+                    {awayC?.shortName ?? "?"}
+                  </p>
+                  <p className="mt-0.5 font-mono text-[10px] uppercase text-white/55">
+                    {tr(lr.summaryKey)}
+                  </p>
+                  <p className="mt-0.5 font-mono text-[9px] text-white/40">
+                    {lr.events
+                      .filter((e) => e.kind === "goal")
+                      .slice(0, 4)
+                      .map(
+                        (e) =>
+                          `${e.minute}' ${e.playerName ?? tr(e.textKey)}`,
+                      )
+                      .join(" · ")}
+                  </p>
+                  {lr.ratings && lr.ratings.length > 0 && (
+                    <p className="mt-1 font-mono text-[9px] text-white/45">
+                      {tr("mgr.ratings.label")}:{" "}
+                      {lr.ratings
+                        .slice(0, 3)
+                        .map((r) => `${r.name} ${r.rating.toFixed(1)}`)
+                        .join(" · ")}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </Section>
 
           <Section title={tr("mgr.tab.tactics")}>
@@ -548,6 +682,8 @@ export function ManagerHub() {
                     <th>Nome</th>
                     <th>{tr("mgr.ovr")}</th>
                     <th>{tr("mgr.fit")}</th>
+                    <th>{tr("mgr.morale")}</th>
+                    <th>{tr("mgr.contract")}</th>
                     <th />
                   </tr>
                 </thead>
@@ -567,6 +703,7 @@ export function ManagerHub() {
                           {p.name}
                           {p.takesPk ? " · BP" : ""}
                           {p.injuredWeeks > 0 ? " ⚕" : ""}
+                          {p.wantsTransfer ? " ↑" : ""}
                         </td>
                         <td className="font-display">{p.ovr}</td>
                         <td
@@ -576,7 +713,13 @@ export function ManagerHub() {
                               : "text-white/50"
                           }`}
                         >
-                          {p.fitness}
+                          {Math.round(p.fitness)}
+                        </td>
+                        <td className="font-mono text-[10px] text-white/45">
+                          {Math.round(p.morale)}
+                        </td>
+                        <td className="font-mono text-[9px] text-white/40">
+                          {p.contractYears ?? 2}a
                         </td>
                         <td>
                           {!state.starters.includes(p.id) &&
@@ -766,6 +909,14 @@ export function ManagerHub() {
       {buyPreview && (() => {
         const p = buyPreview.player;
         const block = canBuyPlayer(state, buyPreview);
+        const bestSame = [...state.squad]
+          .filter((s) => s.pos === p.pos)
+          .sort((a, b) => b.ovr - a.ovr)[0];
+        const delta = bestSame ? p.ovr - bestSame.ovr : p.ovr;
+        const scoutKey =
+          !bestSame || delta > 0
+            ? "mgr.market.upgrade"
+            : "mgr.market.backup";
         const attrs = [
           ["pace", p.attrs.pace],
           ["shoot", p.attrs.shoot],
@@ -794,7 +945,8 @@ export function ManagerHub() {
                   <h3 className="font-display text-xl text-white">{p.name}</h3>
                   <p className="mt-0.5 font-mono text-[10px] text-white/45">
                     {tr("mgr.age")} {p.age} · {tr("mgr.ovr")} {p.ovr} ·{" "}
-                    {tr("mgr.pot")} {p.potential}
+                    {tr("mgr.pot")} {p.potential} · {tr("mgr.contract")}{" "}
+                    {p.contractYears ?? 2}a
                   </p>
                 </div>
                 <button
@@ -821,6 +973,18 @@ export function ManagerHub() {
               </div>
 
               <div className="mt-3 space-y-1 border-t border-white/10 pt-2 font-mono text-[10px] text-white/55">
+                <p>
+                  {tr("mgr.market.scout")}:{" "}
+                  {bestSame ? (
+                    <>
+                      {bestSame.name} ({bestSame.ovr}) · Δ
+                      {delta >= 0 ? "+" : ""}
+                      {delta} · {tr(scoutKey)}
+                    </>
+                  ) : (
+                    tr(scoutKey)
+                  )}
+                </p>
                 <p>
                   {tr("mgr.fee")}:{" "}
                   <span className="text-arena-accent">

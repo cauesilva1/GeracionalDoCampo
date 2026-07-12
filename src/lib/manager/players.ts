@@ -77,6 +77,7 @@ export function seedToPlayer(seed: PlayerSeed, clubId: string): SquadPlayer {
     morale: 70 + Math.floor(Math.random() * 15),
     fitness: 88 + Math.floor(Math.random() * 12),
     injuredWeeks: 0,
+    contractYears: 2 + Math.floor(Math.random() * 3), // 2–4
   };
 }
 

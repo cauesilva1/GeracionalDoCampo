@@ -65,6 +65,7 @@ type ManagerActions = {
     coachName: string,
     origin: CoachOrigin,
     philosophy: CoachPhilosophy,
+    difficulty?: "easy" | "medium" | "hard",
   ) => void;
   goTab: (tab: ManagerTab) => void;
   updateTactics: (patch: Partial<TacticsState>) => void;
@@ -81,6 +82,7 @@ type ManagerActions = {
   doFinishLiveMatch: (override?: {
     homeGoals: number;
     awayGoals: number;
+    events?: import("@/types/manager").MatchEvent[];
   }) => void;
   doResolveEvent: (choiceId: string) => void;
   doOpenNational: () => void;
@@ -153,9 +155,10 @@ export function ManagerGameProvider({
       coachName: string,
       origin: CoachOrigin,
       philosophy: CoachPhilosophy,
+      difficulty: "easy" | "medium" | "hard" = "medium",
     ) => {
       setState((s) =>
-        startCareer(s, country, clubId, coachName, origin, philosophy),
+        startCareer(s, country, clubId, coachName, origin, philosophy, difficulty),
       );
     },
     [],
@@ -237,7 +240,11 @@ export function ManagerGameProvider({
   }, []);
 
   const doFinishLiveMatch = useCallback(
-    (override?: { homeGoals: number; awayGoals: number }) => {
+    (override?: {
+      homeGoals: number;
+      awayGoals: number;
+      events?: import("@/types/manager").MatchEvent[];
+    }) => {
       setState((s) => finishLiveMatch(s, override));
     },
     [],

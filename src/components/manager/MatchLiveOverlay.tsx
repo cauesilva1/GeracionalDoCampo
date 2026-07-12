@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { getClub } from "@/lib/manager/clubs";
+import { powersForClub, simulateSecondHalf } from "@/lib/manager/match";
 import {
   formationSlots,
   jitter,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/manager/matchPitch";
 import type {
   FormationId,
+  MatchEvent,
   MatchResult,
   SquadPlayer,
   TacticStyle,
@@ -95,6 +97,8 @@ export function MatchLiveOverlay({
   bench,
   tactics,
   oppSquad,
+  aiSquads,
+  difficulty,
   important,
   tr,
   onDone,
@@ -106,13 +110,17 @@ export function MatchLiveOverlay({
   bench: string[];
   tactics: TacticsState;
   oppSquad: SquadPlayer[];
+  aiSquads: Record<string, SquadPlayer[]>;
+  difficulty?: "easy" | "medium" | "hard";
   important: boolean;
   tr: Tr;
-  onDone: (override?: { homeGoals: number; awayGoals: number }) => void;
+  onDone: (override?: {
+    homeGoals: number;
+    awayGoals: number;
+    events?: MatchEvent[];
+  }) => void;
 }) {
   const [minute, setMinute] = useState(0);
-  const [homeGoals, setHomeGoals] = useState(0);
-  const [awayGoals, setAwayGoals] = useState(0);
   const [feed, setFeed] = useState<string[]>([]);
   const [formation, setFormation] = useState<FormationId>(tactics.formation);
   const [style, setStyle] = useState<TacticStyle>(tactics.style);
@@ -124,14 +132,42 @@ export function MatchLiveOverlay({
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [subOutId, setSubOutId] = useState<string | null>(null);
+  const [liveEvents, setLiveEvents] = useState<MatchEvent[]>(() => match.events);
+  const [official, setOfficial] = useState(() => ({
+    h: match.homeGoals,
+    a: match.awayGoals,
+  }));
+  const [scoreDirty, setScoreDirty] = useState(false);
 
   const clockStopRef = useRef(false);
   const appliedRef = useRef(new Set<string>());
   const pausedRef = useRef(false);
+  const halfResimDoneRef = useRef(false);
 
   const home = getClub(match.homeId);
   const away = getClub(match.awayId);
   const userHome = match.homeId === clubId;
+
+  // Derive live score from goal events — never increment with setState
+  const homeGoals = useMemo(() => {
+    if (finished) return official.h;
+    return liveEvents.filter(
+      (e) =>
+        e.kind === "goal" &&
+        e.clubId === match.homeId &&
+        e.minute <= minute,
+    ).length;
+  }, [finished, official.h, liveEvents, match.homeId, minute]);
+
+  const awayGoals = useMemo(() => {
+    if (finished) return official.a;
+    return liveEvents.filter(
+      (e) =>
+        e.kind === "goal" &&
+        e.clubId === match.awayId &&
+        e.minute <= minute,
+    ).length;
+  }, [finished, official.a, liveEvents, match.awayId, minute]);
   const userColor = userHome
     ? (home?.colors.primary ?? "#e8c547")
     : (away?.colors.primary ?? "#e8c547");
@@ -139,15 +175,9 @@ export function MatchLiveOverlay({
     ? (away?.colors.primary ?? "#7dd3fc")
     : (home?.colors.primary ?? "#7dd3fc");
 
-  // Official score only — live tactics never invent goals (avoids 8–0 vs 4–0 desync).
   const goals = useMemo(
-    () => match.events.filter((e) => e.kind === "goal"),
-    [match.events],
-  );
-
-  const finalScore = useMemo(
-    () => ({ h: match.homeGoals, a: match.awayGoals }),
-    [match.homeGoals, match.awayGoals],
+    () => liveEvents.filter((e) => e.kind === "goal"),
+    [liveEvents],
   );
 
   useEffect(() => {
@@ -158,13 +188,17 @@ export function MatchLiveOverlay({
   useEffect(() => {
     clockStopRef.current = false;
     appliedRef.current = new Set();
+    halfResimDoneRef.current = false;
     setMinute(0);
-    setHomeGoals(0);
-    setAwayGoals(0);
     setFeed([]);
     setBoardOpen(false);
     setFinished(false);
     setSubOutId(null);
+    setLiveEvents(match.events);
+    setOfficial({ h: match.homeGoals, a: match.awayGoals });
+    setScoreDirty(false);
+    setFormation(tactics.formation);
+    setStyle(tactics.style);
 
     const id = window.setInterval(() => {
       if (pausedRef.current || clockStopRef.current) return;
@@ -175,6 +209,8 @@ export function MatchLiveOverlay({
     }, TICK_MS);
 
     return () => window.clearInterval(id);
+    // Reset only when a new fixture starts
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match.fixtureId]);
 
   // Gentle movement + fatigue
@@ -204,16 +240,13 @@ export function MatchLiveOverlay({
     );
   }, [minute, boardOpen, finished, style]);
 
-  // Goals + full time — stable keys so score never duplicates
+  // Goal feed + full time (score already derived — only mark feed once per event id)
   useEffect(() => {
-    for (let i = 0; i < goals.length; i++) {
-      const g = goals[i]!;
-      const key = `${g.minute}-${g.clubId}-${g.playerName ?? i}`;
+    for (const g of goals) {
+      const key = g.id || `${g.minute}-${g.clubId}-${g.playerName ?? ""}`;
       if (g.minute > minute || appliedRef.current.has(key)) continue;
       appliedRef.current.add(key);
       const scorer = g.playerName ?? tr(g.textKey);
-      if (g.clubId === match.homeId) setHomeGoals((n) => n + 1);
-      else setAwayGoals((n) => n + 1);
       setFeed((f) =>
         [`${g.minute}' · ${tr("mgr.event.goal")} · ${scorer}`, ...f].slice(0, 5),
       );
@@ -233,8 +266,14 @@ export function MatchLiveOverlay({
 
     if (minute >= MAX_MIN && !finished) {
       clockStopRef.current = true;
-      setHomeGoals(finalScore.h);
-      setAwayGoals(finalScore.a);
+      // FT: official score must match goal event counts
+      const h = liveEvents.filter(
+        (e) => e.kind === "goal" && e.clubId === match.homeId,
+      ).length;
+      const a = liveEvents.filter(
+        (e) => e.kind === "goal" && e.clubId === match.awayId,
+      ).length;
+      setOfficial({ h, a });
       setFinished(true);
       setBoardOpen(false);
     }
@@ -242,12 +281,82 @@ export function MatchLiveOverlay({
     minute,
     goals,
     match.homeId,
+    match.awayId,
     tr,
     clubId,
     finished,
-    finalScore.h,
-    finalScore.a,
+    liveEvents,
   ]);
+
+  const rerollSecondHalf = (nextFormation: FormationId, nextStyle: TacticStyle) => {
+    if (minute < 45 || finished || halfResimDoneRef.current) {
+      setFeed((prev) =>
+        [
+          `${minute}' · ${tr("mgr.live.tacticsQueued")}`,
+          ...prev,
+        ].slice(0, 5),
+      );
+      return;
+    }
+    halfResimDoneRef.current = true;
+    const nextTactics: TacticsState = {
+      ...tactics,
+      formation: nextFormation,
+      style: nextStyle,
+    };
+    const homeP = powersForClub(
+      match.homeId,
+      clubId,
+      squad,
+      xi,
+      nextTactics,
+      aiSquads,
+      true,
+      undefined,
+      undefined,
+      match.awayId,
+      difficulty,
+    );
+    const awayP = powersForClub(
+      match.awayId,
+      clubId,
+      squad,
+      xi,
+      nextTactics,
+      aiSquads,
+      false,
+      undefined,
+      undefined,
+      match.homeId,
+      difficulty,
+    );
+    const updated = simulateSecondHalf(
+      { ...match, events: liveEvents, homeGoals: official.h, awayGoals: official.a },
+      {
+        homeAttack: homeP.attack,
+        homeDefense: homeP.defense,
+        awayAttack: awayP.attack,
+        awayDefense: awayP.defense,
+      },
+      clubId,
+      squad,
+    );
+    // Clear applied keys for new 2H goals so feed can announce them
+    for (const e of updated.events) {
+      if (e.kind === "goal" && e.minute > 45) {
+        appliedRef.current.delete(e.id);
+        appliedRef.current.delete(
+          `${e.minute}-${e.clubId}-${e.playerName ?? ""}`,
+        );
+      }
+    }
+    setLiveEvents(updated.events);
+    setOfficial({ h: updated.homeGoals, a: updated.awayGoals });
+    setScoreDirty(true);
+    setFeed((prev) =>
+      [`${minute}' · ${tr("mgr.live.secondHalfReroll")}`, ...prev].slice(0, 5),
+    );
+  };
 
   const applyFormation = (f: FormationId) => {
     setFormation(f);
@@ -272,6 +381,7 @@ export function MatchLiveOverlay({
         5,
       ),
     );
+    if (minute >= 45) rerollSecondHalf(f, style);
   };
 
   const applyStyle = (s: TacticStyle) => {
@@ -282,6 +392,7 @@ export function MatchLiveOverlay({
         ...f,
       ].slice(0, 5),
     );
+    if (minute >= 45) rerollSecondHalf(formation, s);
   };
 
   const applySub = (outId: string, inId: string) => {
@@ -319,14 +430,24 @@ export function MatchLiveOverlay({
   const jumpToEnd = () => {
     clockStopRef.current = true;
     setMinute(MAX_MIN);
-    setHomeGoals(finalScore.h);
-    setAwayGoals(finalScore.a);
+    const h = liveEvents.filter(
+      (e) => e.kind === "goal" && e.clubId === match.homeId,
+    ).length;
+    const a = liveEvents.filter(
+      (e) => e.kind === "goal" && e.clubId === match.awayId,
+    ).length;
+    setOfficial({ h, a });
     setBoardOpen(false);
     setFinished(true);
   };
 
   const confirmFinish = () => {
-    onDone();
+    // Always sync hub/table to the score the player actually saw (event counts).
+    onDone({
+      homeGoals: official.h,
+      awayGoals: official.a,
+      events: liveEvents,
+    });
   };
 
   const openBoard = () => {

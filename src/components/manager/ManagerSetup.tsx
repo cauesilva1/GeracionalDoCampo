@@ -40,6 +40,9 @@ export function ManagerSetup() {
   const [origin, setOrigin] = useState<CoachOrigin>("ex_player");
   const [philosophy, setPhilosophy] =
     useState<CoachPhilosophy>("possession");
+  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">(
+    "medium",
+  );
   const [coachName, setCoachName] = useState("Técnico");
   const [spinPhase, setSpinPhase] = useState<SpinPhase>("idle");
   const [displayClub, setDisplayClub] = useState<ClubTemplate | null>(null);
@@ -168,6 +171,7 @@ export function ManagerSetup() {
                     coachName,
                     origin,
                     philosophy,
+                    difficulty,
                   )
                 }
               >
@@ -246,6 +250,25 @@ export function ManagerSetup() {
                   </Button>
                 ))}
               </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="font-mono text-[9px] uppercase text-white/40">
+              {tr("mgr.setup.pickDifficulty")}
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {(["easy", "medium", "hard"] as const).map((id) => (
+                <Button
+                  key={id}
+                  variant={difficulty === id ? "chipActive" : "chip"}
+                  className="!px-2 !py-1 text-[10px]"
+                  onClick={() => setDifficulty(id)}
+                  disabled={spinPhase === "spinning"}
+                >
+                  {tr(`mgr.diff.${id}`)}
+                </Button>
+              ))}
             </div>
           </div>
         </div>

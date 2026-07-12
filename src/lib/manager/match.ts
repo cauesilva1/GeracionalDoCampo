@@ -6,6 +6,7 @@ import {
 import { xiPowers } from "@/lib/manager/players";
 import { clamp, rand, shuffle, uid } from "@/lib/utils";
 import type {
+  BoardGoal,
   CoachPhilosophy,
   Fixture,
   MatchEvent,
@@ -26,6 +27,53 @@ function styleBonus(style: TacticStyle, asHome: boolean): number {
     default:
       return 1.6 + home;
   }
+}
+
+/** Known derby pairs + prestige ≥ 70 same-league clash. */
+const RIVAL_PAIRS: [string, string][] = [
+  ["bra-fla", "bra-flu"],
+  ["bra-cor", "bra-pal"],
+  ["bra-sao", "bra-san"],
+  ["bra-gre", "bra-int"],
+  ["eng-liv", "eng-eve"],
+  ["eng-mun", "eng-liv"],
+  ["eng-ars", "eng-tot"],
+  ["esp-rma", "esp-bar"],
+  ["esp-atm", "esp-rma"],
+  ["esp-sev", "esp-bet"],
+];
+
+export function isRivalryMatch(a: string, b: string): boolean {
+  const pair = RIVAL_PAIRS.some(
+    ([x, y]) => (x === a && y === b) || (x === b && y === a),
+  );
+  if (pair) return true;
+  const ca = getClub(a);
+  const cb = getClub(b);
+  if (!ca || !cb) return false;
+  return (
+    ca.leagueId === cb.leagueId &&
+    ca.prestige >= 70 &&
+    cb.prestige >= 70
+  );
+}
+
+function rivalryAttackBonus(
+  clubId: string,
+  oppId: string,
+  userClubId: string,
+): number {
+  if (clubId !== userClubId) return 0;
+  return isRivalryMatch(clubId, oppId) ? 1.5 : 0;
+}
+
+function difficultyScale(
+  difficulty: "easy" | "medium" | "hard" | undefined,
+  isUser: boolean,
+): number {
+  if (!difficulty || difficulty === "medium") return 1;
+  if (difficulty === "easy") return isUser ? 1.06 : 0.94;
+  return isUser ? 0.94 : 1.08;
 }
 
 /** xG from attack power vs opponent defense. */
@@ -172,7 +220,7 @@ export function reverseResult(
   });
 }
 
-function powersForClub(
+export function powersForClub(
   clubId: string,
   userClubId: string,
   userSquad: SquadPlayer[],
@@ -182,21 +230,32 @@ function powersForClub(
   asHome: boolean,
   coachPhilosophy?: CoachPhilosophy,
   coachOvr?: number,
+  oppId?: string,
+  difficulty?: "easy" | "medium" | "hard",
 ): { attack: number; defense: number } {
-  if (clubId === userClubId) {
+  const isUser = clubId === userClubId;
+  const scale = difficultyScale(difficulty, isUser);
+  const rival =
+    oppId != null ? rivalryAttackBonus(clubId, oppId, userClubId) : 0;
+
+  if (isUser) {
     const philo = coachPhilosophy
       ? philosophyMatchBonus(coachPhilosophy, userTactics.style)
       : 0;
     const skill = coachOvr != null ? coachOvrMatchBonus(coachOvr) : 0;
-    return xiPowers(
+    const base = xiPowers(
       userSquad,
       userStarters,
       userTactics.attack,
       userTactics.midfield,
       userTactics.defense,
-      styleBonus(userTactics.style, asHome) + philo + skill,
+      styleBonus(userTactics.style, asHome) + philo + skill + rival,
       userTactics.formation,
     );
+    return {
+      attack: clamp(base.attack * scale, 48, 96),
+      defense: clamp(base.defense * scale, 48, 96),
+    };
   }
   const club = getClub(clubId);
   const squad = aiSquads[clubId] ?? [];
@@ -207,10 +266,30 @@ function powersForClub(
   const base = xiPowers(squad, top, 52, 52, 52, asHome ? 1.8 : 0.4);
   // Prestige nudges AI, but squad quality dominates (was 40% prestige).
   const prestige = club?.prestige ?? 60;
+  const prestigeW =
+    difficulty === "easy" ? 0.16 : difficulty === "hard" ? 0.28 : 0.22;
   return {
-    attack: clamp(base.attack * 0.72 + prestige * 0.22, 50, 92),
-    defense: clamp(base.defense * 0.72 + prestige * 0.22, 50, 92),
+    attack: clamp((base.attack * 0.72 + prestige * prestigeW) * scale, 50, 92),
+    defense: clamp((base.defense * 0.72 + prestige * prestigeW) * scale, 50, 92),
   };
+}
+
+/** Target table position for board goal (soft progress UI). */
+export function boardGoalTarget(goal: BoardGoal, clubs: number): number {
+  if (goal === "title") return 1;
+  if (goal === "top4") return 4;
+  if (goal === "midtable") return Math.ceil(clubs / 2);
+  return Math.max(1, clubs - 3);
+}
+
+export function matchLeanKey(
+  userAttack: number,
+  oppDefense: number,
+): "mgr.preview.lean.fav" | "mgr.preview.lean.even" | "mgr.preview.lean.hard" {
+  const diff = userAttack - oppDefense;
+  if (diff >= 4) return "mgr.preview.lean.fav";
+  if (diff <= -4) return "mgr.preview.lean.hard";
+  return "mgr.preview.lean.even";
 }
 
 export function simulateMatchday(input: {
@@ -224,6 +303,7 @@ export function simulateMatchday(input: {
   coachPhilosophy?: CoachPhilosophy;
   coachOvr?: number;
   aiSquads: Record<string, SquadPlayer[]>;
+  difficulty?: "easy" | "medium" | "hard";
 }): {
   fixtures: Fixture[];
   table: TableRow[];
@@ -238,6 +318,7 @@ export function simulateMatchday(input: {
     coachPhilosophy,
     coachOvr,
     aiSquads,
+    difficulty,
   } = input;
   let table = input.table;
   let userResult: MatchResult | null = null;
@@ -255,6 +336,8 @@ export function simulateMatchday(input: {
       true,
       coachPhilosophy,
       coachOvr,
+      fx.awayId,
+      difficulty,
     );
     const away = powersForClub(
       fx.awayId,
@@ -266,22 +349,41 @@ export function simulateMatchday(input: {
       false,
       coachPhilosophy,
       coachOvr,
+      fx.homeId,
+      difficulty,
     );
 
-    const hg = sampleGoals(expectedGoals(home.attack, away.defense));
-    const ag = sampleGoals(expectedGoals(away.attack, home.defense));
-
-    table = applyResult(table, fx.homeId, fx.awayId, hg, ag);
+    let hg = sampleGoals(expectedGoals(home.attack, away.defense));
+    let ag = sampleGoals(expectedGoals(away.attack, home.defense));
 
     const involvesUser =
       fx.homeId === userClubId || fx.awayId === userClubId;
 
+    let events: MatchEvent[] = [];
     if (involvesUser) {
-      const events = buildEvents(fx.homeId, fx.awayId, hg, ag, userClubId, userSquad);
+      events = buildEvents(fx.homeId, fx.awayId, hg, ag, userClubId, userSquad);
+      // Source of truth = goal events
+      hg = events.filter((e) => e.kind === "goal" && e.clubId === fx.homeId).length;
+      ag = events.filter((e) => e.kind === "goal" && e.clubId === fx.awayId).length;
+    }
+
+    table = applyResult(table, fx.homeId, fx.awayId, hg, ag);
+
+    if (involvesUser) {
       const won =
         (fx.homeId === userClubId && hg > ag) ||
         (fx.awayId === userClubId && ag > hg);
       const drawn = hg === ag;
+      const gd = Math.abs(
+        (fx.homeId === userClubId ? hg - ag : ag - hg),
+      );
+      let summaryKey = won
+        ? "mgr.match.win"
+        : drawn
+          ? "mgr.match.draw"
+          : "mgr.match.loss";
+      if (won && gd >= 3) summaryKey = "mgr.match.bigWin";
+      if (!won && !drawn && gd >= 3) summaryKey = "mgr.match.bigLoss";
       userResult = {
         fixtureId: fx.id,
         homeId: fx.homeId,
@@ -289,7 +391,7 @@ export function simulateMatchday(input: {
         homeGoals: hg,
         awayGoals: ag,
         events,
-        summaryKey: won ? "mgr.match.win" : drawn ? "mgr.match.draw" : "mgr.match.loss",
+        summaryKey,
       };
     }
 
@@ -304,6 +406,42 @@ export function simulateMatchday(input: {
   return { fixtures, table: sortTable(table), userResult };
 }
 
+function pickUniqueMinute(
+  used: Set<number>,
+  min: number,
+  max: number,
+): number {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const m = Math.round(rand(min, max));
+    if (!used.has(m)) {
+      used.add(m);
+      return m;
+    }
+  }
+  for (let m = min; m <= max; m++) {
+    if (!used.has(m)) {
+      used.add(m);
+      return m;
+    }
+  }
+  const fallback = Math.min(max, min + used.size);
+  used.add(fallback);
+  return fallback;
+}
+
+function pickScorerName(
+  clubId: string,
+  userClubId: string,
+  userSquad: SquadPlayer[],
+  index: number,
+): string | undefined {
+  if (clubId !== userClubId) return undefined;
+  const atk = userSquad
+    .filter((p) => p.pos === "ST" || p.pos === "W" || p.pos === "AM")
+    .sort((a, b) => b.attrs.shoot - a.attrs.shoot);
+  return atk[index % Math.max(atk.length, 1)]?.name ?? userSquad[0]?.name;
+}
+
 export function buildEvents(
   homeId: string,
   awayId: string,
@@ -313,22 +451,18 @@ export function buildEvents(
   userSquad: SquadPlayer[],
 ): MatchEvent[] {
   const events: MatchEvent[] = [];
+  const usedMinutes = new Set<number>();
+
   const scorers = (n: number, clubId: string) => {
     for (let i = 0; i < n; i++) {
-      const minute = Math.round(rand(6, 90));
-      let playerName: string | undefined;
-      if (clubId === userClubId) {
-        const atk = userSquad
-          .filter((p) => p.pos === "ST" || p.pos === "W" || p.pos === "AM")
-          .sort((a, b) => b.attrs.shoot - a.attrs.shoot);
-        playerName = atk[i % Math.max(atk.length, 1)]?.name ?? userSquad[0]?.name;
-      }
+      const minute = pickUniqueMinute(usedMinutes, 6, 90);
       events.push({
+        id: uid("ev"),
         minute,
         kind: "goal",
         clubId,
         textKey: "mgr.event.goal",
-        playerName,
+        playerName: pickScorerName(clubId, userClubId, userSquad, i),
       });
     }
   };
@@ -336,13 +470,113 @@ export function buildEvents(
   scorers(ag, awayId);
   if (Math.random() < 0.35) {
     events.push({
-      minute: Math.round(rand(20, 80)),
+      id: uid("ev"),
+      minute: pickUniqueMinute(usedMinutes, 20, 80),
       kind: "chance",
       clubId: Math.random() < 0.5 ? homeId : awayId,
       textKey: "mgr.event.chance",
     });
   }
   return events.sort((a, b) => a.minute - b.minute);
+}
+
+/**
+ * Keep goals ≤ 45, re-roll goals for 46–90 from updated powers.
+ * Score at 45 is preserved; totals come from the new event list.
+ */
+export function simulateSecondHalf(
+  match: MatchResult,
+  powers: {
+    homeAttack: number;
+    homeDefense: number;
+    awayAttack: number;
+    awayDefense: number;
+  },
+  userClubId: string,
+  userSquad: SquadPlayer[],
+): MatchResult {
+  const kept = match.events.filter(
+    (e) => e.kind !== "goal" || e.minute <= 45,
+  );
+  const hg45 = kept.filter(
+    (e) => e.kind === "goal" && e.clubId === match.homeId,
+  ).length;
+  const ag45 = kept.filter(
+    (e) => e.kind === "goal" && e.clubId === match.awayId,
+  ).length;
+
+  // Half-match xG (~45')
+  const addH = sampleGoals(
+    expectedGoals(powers.homeAttack, powers.awayDefense) * 0.5,
+  );
+  const addA = sampleGoals(
+    expectedGoals(powers.awayAttack, powers.homeDefense) * 0.5,
+  );
+
+  const used = new Set(kept.map((e) => e.minute));
+  const extra: MatchEvent[] = [];
+  for (let i = 0; i < addH; i++) {
+    extra.push({
+      id: uid("ev"),
+      minute: pickUniqueMinute(used, 46, 90),
+      kind: "goal",
+      clubId: match.homeId,
+      textKey: "mgr.event.goal",
+      playerName: pickScorerName(
+        match.homeId,
+        userClubId,
+        userSquad,
+        hg45 + i,
+      ),
+    });
+  }
+  for (let i = 0; i < addA; i++) {
+    extra.push({
+      id: uid("ev"),
+      minute: pickUniqueMinute(used, 46, 90),
+      kind: "goal",
+      clubId: match.awayId,
+      textKey: "mgr.event.goal",
+      playerName: pickScorerName(
+        match.awayId,
+        userClubId,
+        userSquad,
+        ag45 + i,
+      ),
+    });
+  }
+
+  const events = [...kept.filter((e) => e.kind === "goal" || e.kind === "chance"), ...extra].sort(
+    (a, b) => a.minute - b.minute,
+  );
+  const homeGoals = events.filter(
+    (e) => e.kind === "goal" && e.clubId === match.homeId,
+  ).length;
+  const awayGoals = events.filter(
+    (e) => e.kind === "goal" && e.clubId === match.awayId,
+  ).length;
+
+  const uHome = match.homeId === userClubId;
+  const gf = uHome ? homeGoals : awayGoals;
+  const ga = uHome ? awayGoals : homeGoals;
+  const won = gf > ga;
+  const drawn = gf === ga;
+  const gd = Math.abs(gf - ga);
+  let summaryKey = won
+    ? "mgr.match.win"
+    : drawn
+      ? "mgr.match.draw"
+      : "mgr.match.loss";
+  if (won && gd >= 3) summaryKey = "mgr.match.bigWin";
+  if (!won && !drawn && gd >= 3) summaryKey = "mgr.match.bigLoss";
+
+  return {
+    ...match,
+    homeGoals,
+    awayGoals,
+    events,
+    summaryKey,
+  };
 }
 
 export function boardConfidenceDelta(
@@ -352,14 +586,7 @@ export function boardConfidenceDelta(
   result: "W" | "D" | "L",
 ): number {
   let d = result === "W" ? 3 : result === "D" ? 0 : -4;
-  const expected =
-    goal === "title"
-      ? 1
-      : goal === "top4"
-        ? 4
-        : goal === "midtable"
-          ? Math.ceil(clubs / 2)
-          : clubs - 3;
+  const expected = boardGoalTarget(goal, clubs);
   if (tablePos <= expected) d += 1;
   else if (tablePos > expected + 3) d -= 2;
   return d;

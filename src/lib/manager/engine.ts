@@ -60,6 +60,39 @@ import {
 } from "@/types/manager";
 import type { Locale } from "@/types/game";
 
+function buildMatchRatings(
+  squad: SquadPlayer[],
+  starters: string[],
+  result: import("@/types/manager").MatchResult,
+  userClubId: string,
+): import("@/types/manager").MatchPlayerRating[] {
+  const userGoals = result.events.filter(
+    (e) => e.kind === "goal" && e.clubId === userClubId,
+  );
+  return starters
+    .slice(0, 11)
+    .map((id) => {
+      const p = squad.find((s) => s.id === id);
+      if (!p) return null;
+      const goals = userGoals.filter((g) => g.playerName === p.name).length;
+      const rating = clamp(
+        Math.round(
+          (6.0 +
+            (p.ovr - 70) * 0.045 +
+            (p.fitness / 100) * 0.5 +
+            goals * 0.55 +
+            (p.morale - 70) * 0.01) *
+            10,
+        ) / 10,
+        4.5,
+        9.8,
+      );
+      return { playerId: p.id, name: p.name, rating };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b!.rating - a!.rating) as import("@/types/manager").MatchPlayerRating[];
+}
+
 export function createFreshManagerState(locale: Locale): ManagerState {
   return {
     phase: "setup",
@@ -107,6 +140,7 @@ export function startCareer(
   coachName: string,
   origin: CoachOrigin,
   philosophy: CoachPhilosophy,
+  difficulty: "easy" | "medium" | "hard" = "medium",
 ): ManagerState {
   const startLeague = startingLeagueForCountry(country);
   const club = getClub(clubId);
@@ -158,6 +192,7 @@ export function startCareer(
     peakTier: league.tier,
     signingsThisWindow: 0,
     seasonsInCareer: 1,
+    difficulty,
   });
 
   return {
@@ -256,6 +291,8 @@ export function buyPlayer(
       : `${listing.player.id}-in`,
     morale: 72,
     fitness: 100,
+    contractYears:
+      listing.player.contractYears ?? 2 + Math.floor(Math.random() * 3),
   };
 
   let aiSquads = { ...state.aiSquads };
@@ -400,6 +437,7 @@ export function playMatchday(state: ManagerState): ManagerState {
     coachPhilosophy: state.career.philosophy,
     coachOvr: state.career.ovr ?? 58,
     aiSquads: state.aiSquads,
+    difficulty: state.career.difficulty,
   });
 
   if (!sim.userResult) {
@@ -436,7 +474,11 @@ export function playMatchday(state: ManagerState): ManagerState {
 /** Called after chronometer animation ends. Optional score override from live tactics. */
 export function finishLiveMatch(
   state: ManagerState,
-  override?: { homeGoals: number; awayGoals: number },
+  override?: {
+    homeGoals: number;
+    awayGoals: number;
+    events?: import("@/types/manager").MatchEvent[];
+  },
 ): ManagerState {
   if (!state.career || !state.season) return state;
   if (state.phase !== "match_live") return state;
@@ -445,59 +487,67 @@ export function finishLiveMatch(
   let table = state.season.table;
   let fixtures = state.season.fixtures;
 
-  if (
-    live &&
-    override &&
-    (override.homeGoals !== live.homeGoals ||
-      override.awayGoals !== live.awayGoals)
-  ) {
-    table = reverseResult(
-      table,
-      live.homeId,
-      live.awayId,
-      live.homeGoals,
-      live.awayGoals,
-    );
-    table = sortTable(
-      applyResult(
+  if (live && override) {
+    const scoreChanged =
+      override.homeGoals !== live.homeGoals ||
+      override.awayGoals !== live.awayGoals;
+
+    if (scoreChanged) {
+      table = reverseResult(
         table,
         live.homeId,
         live.awayId,
-        override.homeGoals,
-        override.awayGoals,
-      ),
-    );
-    fixtures = fixtures.map((fx) =>
-      fx.id === live!.fixtureId
-        ? {
-            ...fx,
-            homeGoals: override.homeGoals,
-            awayGoals: override.awayGoals,
-          }
-        : fx,
-    );
+        live.homeGoals,
+        live.awayGoals,
+      );
+      table = sortTable(
+        applyResult(
+          table,
+          live.homeId,
+          live.awayId,
+          override.homeGoals,
+          override.awayGoals,
+        ),
+      );
+      fixtures = fixtures.map((fx) =>
+        fx.id === live!.fixtureId
+          ? {
+              ...fx,
+              homeGoals: override.homeGoals,
+              awayGoals: override.awayGoals,
+            }
+          : fx,
+      );
+    }
+
     const uHome = live.homeId === state.career.clubId;
     const gf = uHome ? override.homeGoals : override.awayGoals;
     const ga = uHome ? override.awayGoals : override.homeGoals;
     const won = gf > ga;
     const drawn = gf === ga;
+    const gd = Math.abs(gf - ga);
+    let summaryKey = won
+      ? "mgr.match.win"
+      : drawn
+        ? "mgr.match.draw"
+        : "mgr.match.loss";
+    if (won && gd >= 3) summaryKey = "mgr.match.bigWin";
+    if (!won && !drawn && gd >= 3) summaryKey = "mgr.match.bigLoss";
     live = {
       ...live,
       homeGoals: override.homeGoals,
       awayGoals: override.awayGoals,
-      events: buildEvents(
-        live.homeId,
-        live.awayId,
-        override.homeGoals,
-        override.awayGoals,
-        state.career.clubId,
-        state.squad,
-      ),
-      summaryKey: won
-        ? "mgr.match.win"
-        : drawn
-          ? "mgr.match.draw"
-          : "mgr.match.loss",
+      events:
+        override.events ??
+        buildEvents(
+          live.homeId,
+          live.awayId,
+          override.homeGoals,
+          override.awayGoals,
+          state.career.clubId,
+          state.squad,
+        ),
+      summaryKey,
     };
   }
 
@@ -536,15 +586,19 @@ function finishMatchAftermath(
     if (!state.starters.includes(p.id)) {
       return {
         ...p,
-        fitness: clamp(p.fitness + (opts?.protectJob ? 10 : 6), 55, 100),
+        fitness: Math.round(
+          clamp(p.fitness + (opts?.protectJob ? 10 : 6), 55, 100),
+        ),
         injuredWeeks: Math.max(0, p.injuredWeeks - 1),
       };
     }
     // Skip-season: softer drain so the squad survives the fast-forward.
-    let fitness = clamp(
-      p.fitness - (opts?.protectJob ? rand(1, 2) : rand(2, 5)),
-      opts?.protectJob ? 58 : 52,
-      100,
+    let fitness = Math.round(
+      clamp(
+        p.fitness - (opts?.protectJob ? rand(1, 2) : rand(2, 5)),
+        opts?.protectJob ? 58 : 52,
+        100,
+      ),
     );
     let injuredWeeks = p.injuredWeeks;
     let morale = p.morale;
@@ -559,6 +613,19 @@ function finishMatchAftermath(
     }
     return { ...p, fitness, injuredWeeks, morale };
   });
+
+  let resultWithNotes = userResult;
+  if (userResult && state.career) {
+    resultWithNotes = {
+      ...userResult,
+      ratings: buildMatchRatings(
+        state.squad,
+        state.starters,
+        userResult,
+        state.career.clubId,
+      ),
+    };
+  }
 
   if (userResult && state.career) {
     const uHome = userResult.homeId === state.career.clubId;
@@ -612,7 +679,28 @@ function finishMatchAftermath(
       ...s,
       matchday: seasonDone ? s.matchday : nextMd,
       transferWindowOpen: windowOpen && !seasonDone,
+      lastResult: resultWithNotes ?? s.lastResult,
     },
+    news: (() => {
+      const keys: string[] = [];
+      if (resultWithNotes) {
+        if (resultWithNotes.summaryKey === "mgr.match.bigWin") {
+          keys.push("mgr.news.bigWin");
+        } else if (resultWithNotes.summaryKey === "mgr.match.bigLoss") {
+          keys.push("mgr.news.bigLoss");
+        } else if (resultWithNotes.summaryKey === "mgr.match.win") {
+          const uHome = resultWithNotes.homeId === state.career.clubId;
+          const gf = uHome
+            ? resultWithNotes.homeGoals
+            : resultWithNotes.awayGoals;
+          const ga = uHome
+            ? resultWithNotes.awayGoals
+            : resultWithNotes.homeGoals;
+          if (gf - ga === 1 && ga >= 2) keys.push("mgr.news.thriller");
+        }
+      }
+      return [...keys, ...state.news].slice(0, 8);
+    })(),
     seasonLog: userResult
       ? [`${userResult.homeGoals}-${userResult.awayGoals}`, ...state.seasonLog].slice(
           0,
@@ -691,6 +779,7 @@ export function skipSeason(state: ManagerState): ManagerState {
       coachPhilosophy: cur.career.philosophy,
       coachOvr: cur.career.ovr ?? 58,
       aiSquads: cur.aiSquads,
+      difficulty: cur.career.difficulty,
     });
     cur = finishMatchAftermath(
       {
@@ -1170,9 +1259,13 @@ function continueAtClub(
   if (!club) return state;
   const league = LEAGUES[club.leagueId];
 
-  const squad = isTransfer
-    ? loadClubSquad(clubId)
-    : state.squad.map((p) => ({
+  const contractNews: string[] = [];
+  let squad: SquadPlayer[];
+  if (isTransfer) {
+    squad = loadClubSquad(clubId);
+  } else {
+    squad = state.squad.flatMap((p) => {
+      const aged = {
         ...p,
         age: p.age + 1,
         ovr:
@@ -1184,8 +1277,26 @@ function continueAtClub(
         ),
         fitness: 100,
         injuredWeeks: 0,
-        morale: clamp(p.morale + 2, 40, 90),
-      }));
+      };
+      const years = (p.contractYears ?? 2) - 1;
+      if (years > 0) {
+        return [{ ...aged, morale: clamp(p.morale + 2, 40, 90), contractYears: years }];
+      }
+      if (state.starters.includes(p.id)) {
+        const extend = Math.random() < 0.55;
+        return [
+          {
+            ...aged,
+            morale: clamp(p.morale + (extend ? 2 : -6), 40, 90),
+            contractYears: 1,
+            wantsTransfer: extend ? p.wantsTransfer : true,
+          },
+        ];
+      }
+      contractNews.push("mgr.news.contractEnded");
+      return [];
+    });
+  }
 
   const { aiSquads, market } = buildAiAndMarket(club.leagueId, club.id);
   const { starters, bench } = autoPickStarters(
@@ -1273,6 +1384,7 @@ function continueAtClub(
     },
     news: [
       isTransfer ? "mgr.news.newClub" : "mgr.news.newSeason",
+      ...contractNews.slice(0, 2),
       ...state.news,
     ].slice(0, 8),
     seasonLog: [],

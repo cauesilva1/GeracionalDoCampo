@@ -119,6 +119,8 @@ export interface SquadPlayer {
   takesFk?: boolean;
   takesCorner?: boolean;
   wantsTransfer?: boolean;
+  /** Years left on contract (default set on create) */
+  contractYears?: number;
 }
 
 export interface ClubTemplate {
@@ -189,11 +191,18 @@ export interface Fixture {
 }
 
 export interface MatchEvent {
+  id: string;
   minute: number;
   kind: "goal" | "chance" | "card";
   clubId: string;
   textKey: string;
   playerName?: string;
+}
+
+export interface MatchPlayerRating {
+  playerId: string;
+  name: string;
+  rating: number;
 }
 
 export interface MatchResult {
@@ -204,6 +213,8 @@ export interface MatchResult {
   awayGoals: number;
   events: MatchEvent[];
   summaryKey: string;
+  /** Simple post-match notes for user XI */
+  ratings?: MatchPlayerRating[];
 }
 
 export interface MarketListing {
@@ -315,6 +326,8 @@ export interface ManagerCareer {
   /** National team coaching unlock */
   nationalCoach?: boolean;
   nationalTitles?: number;
+  /** Optional difficulty override from setup (scales AI / user powers) */
+  difficulty?: "easy" | "medium" | "hard";
 }
 
 export interface ManagerState {
