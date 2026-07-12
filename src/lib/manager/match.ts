@@ -94,29 +94,57 @@ function sampleGoals(xg: number): number {
   return k - 1;
 }
 
-export function buildFixtures(leagueId: string): Fixture[] {
-  const clubs = clubsByLeague(leagueId as import("@/types/manager").LeagueId);
-  const ids = clubs.map((c) => c.id);
-  const matchdays = LEAGUES[leagueId as keyof typeof LEAGUES].matchdays;
-  // Simplified: each matchday pairs randomly from a rotating list
+const BYE = "__bye__";
+
+/** Single round-robin via circle method. Odd team counts get a bye. */
+function circleRoundRobin(
+  teamIds: string[],
+): { homeId: string; awayId: string }[][] {
+  const ids = shuffle([...teamIds]);
+  if (ids.length % 2 === 1) ids.push(BYE);
+  const n = ids.length;
+  const rounds = n - 1;
+  const half = n / 2;
+  const rotation = [...ids];
+  const schedule: { homeId: string; awayId: string }[][] = [];
+
+  for (let r = 0; r < rounds; r++) {
+    const pairs: { homeId: string; awayId: string }[] = [];
+    for (let i = 0; i < half; i++) {
+      const a = rotation[i]!;
+      const b = rotation[n - 1 - i]!;
+      if (a === BYE || b === BYE) continue;
+      // Alternate home/away across rounds for fairness
+      const swap = r % 2 === 1;
+      pairs.push(
+        swap
+          ? { homeId: b, awayId: a }
+          : { homeId: a, awayId: b },
+      );
+    }
+    schedule.push(pairs);
+    // Keep index 0 fixed; rotate the rest clockwise
+    const fixed = rotation[0]!;
+    const rest = rotation.slice(1);
+    rest.unshift(rest.pop()!);
+    rotation.splice(0, rotation.length, fixed, ...rest);
+  }
+  return schedule;
+}
+
+function scheduleToFixtures(
+  schedule: { homeId: string; awayId: string }[][],
+  startMatchday: number,
+): Fixture[] {
   const fixtures: Fixture[] = [];
-  let pool = shuffle([...ids]);
-  for (let md = 1; md <= matchdays; md++) {
-    if (md % 4 === 1) pool = shuffle([...ids]);
-    const used = new Set<string>();
-    const order = [...pool];
-    for (let i = 0; i < order.length - 1; i += 2) {
-      const a = order[i]!;
-      const b = order[i + 1]!;
-      if (used.has(a) || used.has(b)) continue;
-      used.add(a);
-      used.add(b);
-      const homeFirst = (md + i) % 2 === 0;
+  for (let i = 0; i < schedule.length; i++) {
+    const md = startMatchday + i;
+    for (const pair of schedule[i]!) {
       fixtures.push({
         id: uid("fx"),
         matchday: md,
-        homeId: homeFirst ? a : b,
-        awayId: homeFirst ? b : a,
+        homeId: pair.homeId,
+        awayId: pair.awayId,
         played: false,
         homeGoals: null,
         awayGoals: null,
@@ -126,9 +154,61 @@ export function buildFixtures(leagueId: string): Fixture[] {
   return fixtures;
 }
 
-export function emptyTable(leagueId: string): TableRow[] {
-  return clubsByLeague(leagueId as import("@/types/manager").LeagueId).map((c) => ({
-    clubId: c.id,
+function reverseSchedule(
+  schedule: { homeId: string; awayId: string }[][],
+): { homeId: string; awayId: string }[][] {
+  return schedule.map((round) =>
+    round.map((p) => ({ homeId: p.awayId, awayId: p.homeId })),
+  );
+}
+
+export function buildFixtures(
+  leagueId: string,
+  clubIds?: string[],
+): Fixture[] {
+  const clubs = clubsByLeague(leagueId as import("@/types/manager").LeagueId);
+  const ids = clubIds ?? clubs.map((c) => c.id);
+  const matchdays = LEAGUES[leagueId as keyof typeof LEAGUES].matchdays;
+
+  const single = circleRoundRobin(ids);
+  // Double RR: first legs + return legs
+  let schedule = [...single, ...reverseSchedule(single)];
+
+  if (matchdays < schedule.length) {
+    // Take first N rounds of a shuffled full schedule
+    schedule = shuffle([...schedule]).slice(0, matchdays);
+  } else {
+    while (schedule.length < matchdays) {
+      const more = circleRoundRobin(ids);
+      const need = matchdays - schedule.length;
+      if (need >= more.length * 2) {
+        schedule = [...schedule, ...more, ...reverseSchedule(more)];
+      } else if (need >= more.length) {
+        schedule = [
+          ...schedule,
+          ...more,
+          ...reverseSchedule(more).slice(0, need - more.length),
+        ];
+      } else {
+        schedule = [...schedule, ...more.slice(0, need)];
+      }
+    }
+  }
+
+  return scheduleToFixtures(schedule, 1);
+}
+
+export function emptyTable(
+  leagueId: string,
+  clubIds?: string[],
+): TableRow[] {
+  const ids =
+    clubIds ??
+    clubsByLeague(leagueId as import("@/types/manager").LeagueId).map(
+      (c) => c.id,
+    );
+  return ids.map((clubId) => ({
+    clubId,
     played: 0,
     won: 0,
     drawn: 0,
@@ -232,13 +312,22 @@ export function powersForClub(
   coachOvr?: number,
   oppId?: string,
   difficulty?: "easy" | "medium" | "hard",
+  seasonsAtClub?: number,
 ): { attack: number; defense: number } {
   const isUser = clubId === userClubId;
-  const scale = difficultyScale(difficulty, isUser);
+  let scale = difficultyScale(difficulty, isUser);
   const rival =
     oppId != null ? rivalryAttackBonus(clubId, oppId, userClubId) : 0;
 
   if (isUser) {
+    const userClub = getClub(userClubId);
+    if (userClub) {
+      if (userClub.difficulty === "nightmare") scale *= 0.92;
+      else if (userClub.difficulty === "hard") scale *= 0.96;
+      const seasons = Math.max(1, seasonsAtClub ?? 1);
+      const fade = Math.max(0, 1 - (seasons - 1) * 0.28);
+      scale *= 1 - userClub.rebuildGap * 0.1 * fade;
+    }
     const philo = coachPhilosophy
       ? philosophyMatchBonus(coachPhilosophy, userTactics.style)
       : 0;
@@ -274,12 +363,23 @@ export function powersForClub(
   };
 }
 
+/** Safe finish line for survive goal (avoid relegation / bottom danger). */
+export function surviveSafePosition(clubs: number, relegate: number): number {
+  if (relegate > 0) return clubs - relegate;
+  const danger = Math.max(3, Math.ceil(clubs * 0.25));
+  return Math.max(1, clubs - danger);
+}
+
 /** Target table position for board goal (soft progress UI). */
-export function boardGoalTarget(goal: BoardGoal, clubs: number): number {
+export function boardGoalTarget(
+  goal: BoardGoal,
+  clubs: number,
+  relegate = 0,
+): number {
   if (goal === "title") return 1;
   if (goal === "top4") return 4;
   if (goal === "midtable") return Math.ceil(clubs / 2);
-  return Math.max(1, clubs - 3);
+  return surviveSafePosition(clubs, relegate);
 }
 
 export function matchLeanKey(
@@ -304,6 +404,7 @@ export function simulateMatchday(input: {
   coachOvr?: number;
   aiSquads: Record<string, SquadPlayer[]>;
   difficulty?: "easy" | "medium" | "hard";
+  seasonsAtClub?: number;
 }): {
   fixtures: Fixture[];
   table: TableRow[];
@@ -319,6 +420,7 @@ export function simulateMatchday(input: {
     coachOvr,
     aiSquads,
     difficulty,
+    seasonsAtClub,
   } = input;
   let table = input.table;
   let userResult: MatchResult | null = null;
@@ -338,6 +440,7 @@ export function simulateMatchday(input: {
       coachOvr,
       fx.awayId,
       difficulty,
+      seasonsAtClub,
     );
     const away = powersForClub(
       fx.awayId,
@@ -351,6 +454,7 @@ export function simulateMatchday(input: {
       coachOvr,
       fx.homeId,
       difficulty,
+      seasonsAtClub,
     );
 
     let hg = sampleGoals(expectedGoals(home.attack, away.defense));
@@ -468,6 +572,20 @@ export function buildEvents(
   };
   scorers(hg, homeId);
   scorers(ag, awayId);
+
+  // Spot-kick: if user has a designated PK taker, small chance of a penalty goal
+  const pkTaker = userSquad.find((p) => p.takesPk);
+  if (pkTaker && Math.random() < 0.08) {
+    events.push({
+      id: uid("ev"),
+      minute: pickUniqueMinute(usedMinutes, 12, 88),
+      kind: "goal",
+      clubId: userClubId,
+      textKey: "mgr.event.penalty",
+      playerName: pkTaker.name,
+    });
+  }
+
   if (Math.random() < 0.35) {
     events.push({
       id: uid("ev"),
@@ -477,6 +595,41 @@ export function buildEvents(
       textKey: "mgr.event.chance",
     });
   }
+
+  // Cards: yellow common-ish, red rare — feed only, no score impact
+  if (Math.random() < 0.15) {
+    const clubId = Math.random() < 0.5 ? homeId : awayId;
+    const fromUser = clubId === userClubId;
+    const name = fromUser
+      ? userSquad[Math.floor(Math.random() * Math.max(userSquad.length, 1))]
+          ?.name
+      : undefined;
+    events.push({
+      id: uid("ev"),
+      minute: pickUniqueMinute(usedMinutes, 8, 88),
+      kind: "card",
+      clubId,
+      textKey: "mgr.event.yellow",
+      playerName: name,
+    });
+  }
+  if (Math.random() < 0.03) {
+    const clubId = Math.random() < 0.5 ? homeId : awayId;
+    const fromUser = clubId === userClubId;
+    const name = fromUser
+      ? userSquad[Math.floor(Math.random() * Math.max(userSquad.length, 1))]
+          ?.name
+      : undefined;
+    events.push({
+      id: uid("ev"),
+      minute: pickUniqueMinute(usedMinutes, 20, 85),
+      kind: "card",
+      clubId,
+      textKey: "mgr.event.red",
+      playerName: name,
+    });
+  }
+
   return events.sort((a, b) => a.minute - b.minute);
 }
 
@@ -546,9 +699,12 @@ export function simulateSecondHalf(
     });
   }
 
-  const events = [...kept.filter((e) => e.kind === "goal" || e.kind === "chance"), ...extra].sort(
-    (a, b) => a.minute - b.minute,
-  );
+  const events = [
+    ...kept.filter(
+      (e) => e.kind === "goal" || e.kind === "chance" || e.kind === "card",
+    ),
+    ...extra,
+  ].sort((a, b) => a.minute - b.minute);
   const homeGoals = events.filter(
     (e) => e.kind === "goal" && e.clubId === match.homeId,
   ).length;
@@ -584,9 +740,10 @@ export function boardConfidenceDelta(
   tablePos: number,
   clubs: number,
   result: "W" | "D" | "L",
+  relegate = 0,
 ): number {
   let d = result === "W" ? 3 : result === "D" ? 0 : -4;
-  const expected = boardGoalTarget(goal, clubs);
+  const expected = boardGoalTarget(goal, clubs, relegate);
   if (tablePos <= expected) d += 1;
   else if (tablePos > expected + 3) d -= 2;
   return d;

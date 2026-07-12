@@ -22,11 +22,21 @@ import {
 import {
   FORMATION_SLOTS,
   type FormationId,
+  type ManagerTab,
   type MarketListing,
   type TacticStyle,
 } from "@/types/manager";
 
 const TUTORIAL_KEY = "geracional-tutorial-v1";
+
+const HUB_TABS: ManagerTab[] = [
+  "overview",
+  "squad",
+  "lineup",
+  "tactics",
+  "market",
+  "table",
+];
 
 function money(
   eur: number,
@@ -60,6 +70,7 @@ export function ManagerHub() {
   const { state } = useManagerState();
   const {
     tr,
+    goTab,
     updateTactics,
     setFormation,
     setStyle,
@@ -67,6 +78,7 @@ export function ManagerHub() {
     doAutoLineup,
     doBuy,
     doSell,
+    doTrade,
     doRefreshMarket,
     doPlayMatch,
     doSkipSeason,
@@ -85,6 +97,8 @@ export function ManagerHub() {
   } = useManagerActions();
 
   const [buyPreview, setBuyPreview] = useState<MarketListing | null>(null);
+  const [tradeMode, setTradeMode] = useState(false);
+  const [tradeGiveId, setTradeGiveId] = useState("");
   const [showTutorial, setShowTutorial] = useState(false);
 
   useEffect(() => {
@@ -130,7 +144,11 @@ export function ManagerHub() {
   const currency = league.currency;
   const m = (eur: number) => money(eur, career.leagueId, currency);
   const myPos = table.findIndex((r) => r.clubId === career.clubId) + 1;
-  const goalTarget = boardGoalTarget(career.boardGoal, league.clubs);
+  const goalTarget = boardGoalTarget(
+    career.boardGoal,
+    league.clubs,
+    league.relegate,
+  );
   const transferBudget = career.transferBudget ?? career.budget;
   const wageBudget = career.wageBudget ?? career.wageBill * 1.2;
   const signings = career.signingsThisWindow ?? 0;
@@ -162,6 +180,7 @@ export function ManagerHub() {
       career.ovr ?? 58,
       oppId,
       career.difficulty,
+      career.seasonsAtClub,
     );
     const oppP = powersForClub(
       oppId,
@@ -175,6 +194,7 @@ export function ManagerHub() {
       career.ovr ?? 58,
       career.clubId,
       career.difficulty,
+      career.seasonsAtClub,
     );
     const lean = matchLeanKey(userP.attack, oppP.defense);
     const rivalry = isRivalryMatch(career.clubId, oppId);
@@ -217,6 +237,9 @@ export function ManagerHub() {
           }
           aiSquads={state.aiSquads}
           difficulty={career.difficulty}
+          philosophy={career.philosophy}
+          coachOvr={career.ovr ?? 58}
+          seasonsAtClub={career.seasonsAtClub}
           important={(() => {
             const oppId =
               state.liveMatch.homeId === career.clubId
@@ -383,6 +406,9 @@ export function ManagerHub() {
                     <p className="font-mono text-[9px] uppercase text-white/40">
                       {tr(LEAGUES[o.leagueId].nameKey)}
                     </p>
+                    <p className="mt-0.5 text-[11px] text-white/50">
+                      {tr(o.reasonKey)}
+                    </p>
                   </div>
                   <Button
                     className="!px-2 !py-1 text-[10px]"
@@ -416,6 +442,37 @@ export function ManagerHub() {
               OVR {Math.round(career.ovr ?? 58)} · {cabinet.leagueTitles}{" "}
               {tr("mgr.legacy.leagueTitles")}
             </p>
+            {state.offers.length > 0 && (
+              <div className="mt-4 space-y-2 text-left">
+                <p className="font-mono text-[9px] uppercase tracking-wider text-white/40">
+                  {tr("mgr.offers.title")}
+                </p>
+                {state.offers.map((o) => (
+                  <div
+                    key={o.id}
+                    className="flex items-center justify-between gap-2 border border-white/10 px-3 py-2"
+                  >
+                    <div>
+                      <p className="font-display text-sm text-white">
+                        {o.clubName}
+                      </p>
+                      <p className="font-mono text-[9px] uppercase text-white/40">
+                        {tr(LEAGUES[o.leagueId].nameKey)}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-white/50">
+                        {tr(o.reasonKey)}
+                      </p>
+                    </div>
+                    <Button
+                      className="!px-2 !py-1 text-[10px]"
+                      onClick={() => doAcceptOffer(o.id)}
+                    >
+                      {tr("mgr.offers.accept")}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
             <Button className="mt-5" onClick={doNextSeason}>
               {tr("mgr.nextSeason")}
             </Button>
@@ -470,9 +527,9 @@ export function ManagerHub() {
             <span className="text-white/35">CX </span>
             {m(transferBudget)}
           </span>
-          <span>
+          <span title={`${tr("mgr.wages")} / ${tr("mgr.wageCap")}`}>
             <span className="text-white/35">SAL </span>
-            {m(career.wageBill)}
+            {m(career.wageBill)}/{m(wageBudget)}
           </span>
           <span>
             <span className="text-white/35">RD </span>
@@ -481,14 +538,42 @@ export function ManagerHub() {
         </div>
       </header>
 
+      {/* Mobile tab bar */}
+      <nav
+        className={`sticky top-0 z-10 -mx-2 mt-2 flex gap-0.5 overflow-x-auto border-b border-white/10 bg-arena-bg/95 px-2 py-1.5 backdrop-blur-sm lg:hidden ${
+          blocked ? "pointer-events-none opacity-40" : ""
+        }`}
+        aria-label={tr("mgr.tab.overview")}
+      >
+        {HUB_TABS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => goTab(t)}
+            className={`shrink-0 cursor-pointer rounded-sm px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-wider ${
+              state.tab === t
+                ? "bg-arena-accent text-arena-bg"
+                : "text-white/45 hover:text-white/75"
+            }`}
+          >
+            {tr(`mgr.tab.${t}`)}
+          </button>
+        ))}
+      </nav>
+
       {/* Single data screen */}
       <div
-        className={`mt-3 grid gap-3 lg:grid-cols-[1.1fr_0.9fr_0.85fr] ${
+        className={`mt-3 grid gap-3 pb-2 lg:grid-cols-[1.1fr_0.9fr_0.85fr] ${
           blocked ? "pointer-events-none opacity-40" : ""
         }`}
       >
         {/* Col 1 — Match + tactics + XI */}
         <div className="space-y-3">
+          <div
+            className={
+              state.tab === "overview" ? "block" : "hidden lg:block"
+            }
+          >
           <Section title={tr("mgr.tab.match")}>
             {nextFixture ? (
               <div className="text-center">
@@ -572,7 +657,13 @@ export function ManagerHub() {
               );
             })()}
           </Section>
+          </div>
 
+          <div
+            className={
+              state.tab === "tactics" ? "block" : "hidden lg:block"
+            }
+          >
           <Section title={tr("mgr.tab.tactics")}>
             <div className="flex flex-wrap gap-1">
               {(["433", "442", "352", "4231"] as FormationId[]).map((f) => (
@@ -634,7 +725,13 @@ export function ManagerHub() {
               ))}
             </div>
           </Section>
+          </div>
 
+          <div
+            className={
+              state.tab === "lineup" ? "block" : "hidden lg:block"
+            }
+          >
           <Section title={tr("mgr.tab.lineup")}>
             <Button
               variant="outline"
@@ -657,8 +754,13 @@ export function ManagerHub() {
                       onChange={(e) => assignStarter(i, e.target.value)}
                     >
                       {state.squad.map((p) => (
-                        <option key={p.id} value={p.id}>
+                        <option
+                          key={p.id}
+                          value={p.id}
+                          disabled={p.injuredWeeks > 0}
+                        >
                           {p.pos} {p.name} ({p.ovr})
+                          {p.injuredWeeks > 0 ? " ⚕" : ""}
                         </option>
                       ))}
                     </select>
@@ -667,10 +769,14 @@ export function ManagerHub() {
               })}
             </div>
           </Section>
+          </div>
         </div>
 
         {/* Col 2 — Squad + market */}
         <div className="space-y-3">
+          <div
+            className={state.tab === "squad" ? "block" : "hidden lg:block"}
+          >
           <Section
             title={`${tr("mgr.tab.squad")} · ${state.squad.length}/${ECONOMY.maxSquadSize} · Ø${avgOvr}`}
           >
@@ -739,7 +845,13 @@ export function ManagerHub() {
               </table>
             </div>
           </Section>
+          </div>
 
+          <div
+            className={
+              state.tab === "market" ? "block" : "hidden lg:block"
+            }
+          >
           <Section
             title={`${tr("mgr.tab.market")} · ${
               season.transferWindowOpen
@@ -773,7 +885,11 @@ export function ManagerHub() {
                       <button
                         type="button"
                         className="min-w-0 flex-1 cursor-pointer text-left"
-                        onClick={() => setBuyPreview(listing)}
+                        onClick={() => {
+                          setTradeMode(false);
+                          setTradeGiveId("");
+                          setBuyPreview(listing);
+                        }}
                       >
                         <p className="truncate text-white">
                           {listing.isSuper ? (
@@ -798,7 +914,11 @@ export function ManagerHub() {
                       <Button
                         variant="outline"
                         className="shrink-0 !px-1.5 !py-0.5 text-[9px]"
-                        onClick={() => setBuyPreview(listing)}
+                        onClick={() => {
+                          setTradeMode(false);
+                          setTradeGiveId("");
+                          setBuyPreview(listing);
+                        }}
                       >
                         {tr("mgr.view")}
                       </Button>
@@ -809,24 +929,30 @@ export function ManagerHub() {
               </>
             )}
           </Section>
+          </div>
         </div>
 
         {/* Col 3 — Table + news + actions */}
         <div className="space-y-3">
+          <div
+            className={state.tab === "table" ? "block" : "hidden lg:block"}
+          >
           <Section title={tr("mgr.tab.table")}>
             <div className="max-h-64 overflow-y-auto">
               <table className="w-full text-left text-[11px]">
                 <thead className="sticky top-0 bg-arena-bg font-mono text-[8px] uppercase text-white/35">
                   <tr>
-                    <th className="py-1">#</th>
+                    <th className="py-1">{tr("mgr.table.pos")}</th>
                     <th>{tr("mgr.table.club")}</th>
-                    <th>Pts</th>
+                    <th>{tr("mgr.table.gd")}</th>
+                    <th>{tr("mgr.table.pts")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {table.map((row, i) => {
                     const c = getClub(row.clubId);
                     const mine = row.clubId === career.clubId;
+                    const gd = row.gf - row.ga;
                     return (
                       <tr
                         key={row.clubId}
@@ -840,6 +966,9 @@ export function ManagerHub() {
                         <td className="truncate font-display text-[11px]">
                           {c?.shortName ?? row.clubId}
                         </td>
+                        <td className="font-mono text-[10px]">
+                          {gd > 0 ? `+${gd}` : gd}
+                        </td>
                         <td className="font-display">{row.pts}</td>
                       </tr>
                     );
@@ -848,7 +977,13 @@ export function ManagerHub() {
               </table>
             </div>
           </Section>
+          </div>
 
+          <div
+            className={
+              state.tab === "overview" ? "block" : "hidden lg:block"
+            }
+          >
           <Section title={tr("mgr.tab.overview")}>
             <p className="text-[11px] text-white/55">
               {career.careerWins ?? 0}V / {career.careerDraws ?? 0}E /{" "}
@@ -903,12 +1038,22 @@ export function ManagerHub() {
               </Button>
             </div>
           </Section>
+          </div>
         </div>
       </div>
 
       {buyPreview && (() => {
         const p = buyPreview.player;
         const block = canBuyPlayer(state, buyPreview);
+        const tradeAllowed =
+          block === "ok" || block === "wage_cap" || block === "no_budget";
+        const tradeCandidates = state.squad.filter(
+          (s) => !state.starters.includes(s.id) && s.injuredWeeks <= 0,
+        );
+        const givePlayer = tradeCandidates.find((s) => s.id === tradeGiveId);
+        const cashDiff = givePlayer
+          ? buyPreview.askingPrice - givePlayer.value
+          : null;
         const bestSame = [...state.squad]
           .filter((s) => s.pos === p.pos)
           .sort((a, b) => b.ovr - a.ovr)[0];
@@ -925,12 +1070,17 @@ export function ManagerHub() {
           ["physical", p.attrs.physical],
           ["mental", p.attrs.mental],
         ] as const;
+        const closePreview = () => {
+          setBuyPreview(null);
+          setTradeMode(false);
+          setTradeGiveId("");
+        };
         return (
           <div
             className="fixed inset-0 z-40 flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center"
             role="dialog"
             aria-modal
-            onClick={() => setBuyPreview(null)}
+            onClick={closePreview}
           >
             <div
               className="w-full max-w-sm border border-white/15 bg-arena-bg p-4 shadow-xl"
@@ -952,7 +1102,7 @@ export function ManagerHub() {
                 <button
                   type="button"
                   className="cursor-pointer font-mono text-[10px] uppercase text-white/40 hover:text-white"
-                  onClick={() => setBuyPreview(null)}
+                  onClick={closePreview}
                 >
                   ✕
                 </button>
@@ -999,25 +1149,88 @@ export function ManagerHub() {
                 ) : null}
               </div>
 
-              <div className="mt-3 flex gap-2">
-                <Button
-                  variant="ghost"
-                  className="flex-1 !py-2 text-[11px]"
-                  onClick={() => setBuyPreview(null)}
-                >
-                  {tr("mgr.cancel")}
-                </Button>
-                <Button
-                  className="flex-1 !py-2 text-[11px]"
-                  disabled={block !== "ok"}
-                  onClick={() => {
-                    doBuy(buyPreview.id);
-                    setBuyPreview(null);
-                  }}
-                >
-                  {tr("mgr.confirmBuy")}
-                </Button>
-              </div>
+              {tradeMode && tradeAllowed ? (
+                <div className="mt-3 space-y-2 border-t border-white/10 pt-2">
+                  <p className="font-mono text-[9px] uppercase text-white/40">
+                    {tr("mgr.pickTrade")}
+                  </p>
+                  <select
+                    className="w-full rounded-sm border border-white/10 bg-arena-bg px-2 py-1.5 text-[11px] text-white"
+                    value={tradeGiveId}
+                    onChange={(e) => setTradeGiveId(e.target.value)}
+                  >
+                    <option value="">{tr("mgr.pickTrade")}</option>
+                    {tradeCandidates.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.pos} {s.name} ({s.ovr}) · {m(s.value)}
+                      </option>
+                    ))}
+                  </select>
+                  {cashDiff != null && (
+                    <p className="font-mono text-[10px] text-white/55">
+                      {tr("mgr.tradeCash")}:{" "}
+                      <span className="text-arena-accent">
+                        {cashDiff > 0
+                          ? `−${m(cashDiff)}`
+                          : cashDiff < 0
+                            ? `+${m(-cashDiff)}`
+                            : m(0)}
+                      </span>
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      className="flex-1 !py-2 text-[11px]"
+                      onClick={() => {
+                        setTradeMode(false);
+                        setTradeGiveId("");
+                      }}
+                    >
+                      {tr("mgr.cancel")}
+                    </Button>
+                    <Button
+                      className="flex-1 !py-2 text-[11px]"
+                      disabled={!tradeGiveId}
+                      onClick={() => {
+                        doTrade(tradeGiveId, buyPreview.id);
+                        closePreview();
+                      }}
+                    >
+                      {tr("mgr.confirmTrade")}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    variant="ghost"
+                    className="flex-1 !py-2 text-[11px]"
+                    onClick={closePreview}
+                  >
+                    {tr("mgr.cancel")}
+                  </Button>
+                  {tradeAllowed && tradeCandidates.length > 0 && (
+                    <Button
+                      variant="outline"
+                      className="flex-1 !py-2 text-[11px]"
+                      onClick={() => setTradeMode(true)}
+                    >
+                      {tr("mgr.trade")}
+                    </Button>
+                  )}
+                  <Button
+                    className="flex-1 !py-2 text-[11px]"
+                    disabled={block !== "ok"}
+                    onClick={() => {
+                      doBuy(buyPreview.id);
+                      closePreview();
+                    }}
+                  >
+                    {tr("mgr.confirmBuy")}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         );

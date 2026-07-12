@@ -11,6 +11,7 @@ import {
   type PitchXY,
 } from "@/lib/manager/matchPitch";
 import type {
+  CoachPhilosophy,
   FormationId,
   MatchEvent,
   MatchResult,
@@ -89,16 +90,21 @@ function buildDots(
   return dots;
 }
 
+const MAX_HALF_RESIMS = 2;
+
 export function MatchLiveOverlay({
   match,
   clubId,
   squad,
   starters,
-  bench,
+  bench: _bench,
   tactics,
   oppSquad,
   aiSquads,
   difficulty,
+  philosophy,
+  coachOvr,
+  seasonsAtClub,
   important,
   tr,
   onDone,
@@ -112,6 +118,9 @@ export function MatchLiveOverlay({
   oppSquad: SquadPlayer[];
   aiSquads: Record<string, SquadPlayer[]>;
   difficulty?: "easy" | "medium" | "hard";
+  philosophy?: CoachPhilosophy;
+  coachOvr?: number;
+  seasonsAtClub?: number;
   important: boolean;
   tr: Tr;
   onDone: (override?: {
@@ -120,6 +129,7 @@ export function MatchLiveOverlay({
     events?: MatchEvent[];
   }) => void;
 }) {
+  void _bench;
   const [minute, setMinute] = useState(0);
   const [feed, setFeed] = useState<string[]>([]);
   const [formation, setFormation] = useState<FormationId>(tactics.formation);
@@ -142,7 +152,22 @@ export function MatchLiveOverlay({
   const clockStopRef = useRef(false);
   const appliedRef = useRef(new Set<string>());
   const pausedRef = useRef(false);
-  const halfResimDoneRef = useRef(false);
+  const halfResimCountRef = useRef(0);
+  const htAppliedRef = useRef(false);
+  const queuedTacticsRef = useRef<{
+    formation: FormationId;
+    style: TacticStyle;
+  } | null>(null);
+  const liveEventsRef = useRef(liveEvents);
+  const officialRef = useRef(official);
+  const xiRef = useRef(xi);
+  const formationRef = useRef(formation);
+  const styleRef = useRef(style);
+  liveEventsRef.current = liveEvents;
+  officialRef.current = official;
+  xiRef.current = xi;
+  formationRef.current = formation;
+  styleRef.current = style;
 
   const home = getClub(match.homeId);
   const away = getClub(match.awayId);
@@ -179,6 +204,10 @@ export function MatchLiveOverlay({
     () => liveEvents.filter((e) => e.kind === "goal"),
     [liveEvents],
   );
+  const cards = useMemo(
+    () => liveEvents.filter((e) => e.kind === "card"),
+    [liveEvents],
+  );
 
   useEffect(() => {
     pausedRef.current = boardOpen || finished;
@@ -188,7 +217,9 @@ export function MatchLiveOverlay({
   useEffect(() => {
     clockStopRef.current = false;
     appliedRef.current = new Set();
-    halfResimDoneRef.current = false;
+    halfResimCountRef.current = 0;
+    htAppliedRef.current = false;
+    queuedTacticsRef.current = null;
     setMinute(0);
     setFeed([]);
     setBoardOpen(false);
@@ -240,15 +271,19 @@ export function MatchLiveOverlay({
     );
   }, [minute, boardOpen, finished, style]);
 
-  // Goal feed + full time (score already derived — only mark feed once per event id)
+  // Goal / card feed + full time (score already derived — only mark feed once per event id)
   useEffect(() => {
     for (const g of goals) {
       const key = g.id || `${g.minute}-${g.clubId}-${g.playerName ?? ""}`;
       if (g.minute > minute || appliedRef.current.has(key)) continue;
       appliedRef.current.add(key);
       const scorer = g.playerName ?? tr(g.textKey);
+      const label =
+        g.textKey === "mgr.event.penalty"
+          ? tr("mgr.event.penalty")
+          : tr("mgr.event.goal");
       setFeed((f) =>
-        [`${g.minute}' · ${tr("mgr.event.goal")} · ${scorer}`, ...f].slice(0, 5),
+        [`${g.minute}' · ${label} · ${scorer}`, ...f].slice(0, 5),
       );
       if (g.clubId === clubId) {
         setDots((prev) => {
@@ -262,6 +297,16 @@ export function MatchLiveOverlay({
           );
         });
       }
+    }
+
+    for (const c of cards) {
+      const key = c.id || `card-${c.minute}-${c.clubId}-${c.textKey}`;
+      if (c.minute > minute || appliedRef.current.has(key)) continue;
+      appliedRef.current.add(key);
+      const who = c.playerName ?? tr(c.textKey);
+      setFeed((f) =>
+        [`${c.minute}' · ${tr(c.textKey)} · ${who}`, ...f].slice(0, 5),
+      );
     }
 
     if (minute >= MAX_MIN && !finished) {
@@ -280,6 +325,7 @@ export function MatchLiveOverlay({
   }, [
     minute,
     goals,
+    cards,
     match.homeId,
     match.awayId,
     tr,
@@ -288,50 +334,78 @@ export function MatchLiveOverlay({
     liveEvents,
   ]);
 
-  const rerollSecondHalf = (nextFormation: FormationId, nextStyle: TacticStyle) => {
-    if (minute < 45 || finished || halfResimDoneRef.current) {
+  const rerollSecondHalf = (
+    nextFormation: FormationId,
+    nextStyle: TacticStyle,
+    fromMinute?: number,
+  ) => {
+    const m = fromMinute ?? minute;
+    if (m < 45 || finished) {
+      queuedTacticsRef.current = {
+        formation: nextFormation,
+        style: nextStyle,
+      };
       setFeed((prev) =>
         [
-          `${minute}' · ${tr("mgr.live.tacticsQueued")}`,
+          `${m}' · ${tr("mgr.live.tacticsQueued")}`,
           ...prev,
         ].slice(0, 5),
       );
       return;
     }
-    halfResimDoneRef.current = true;
+    if (halfResimCountRef.current >= MAX_HALF_RESIMS) {
+      setFeed((prev) =>
+        [
+          `${m}' · ${tr("mgr.live.rerollLimit")}`,
+          ...prev,
+        ].slice(0, 5),
+      );
+      return;
+    }
+    halfResimCountRef.current += 1;
     const nextTactics: TacticsState = {
       ...tactics,
       formation: nextFormation,
       style: nextStyle,
     };
+    const currentXi = xiRef.current;
+    const currentEvents = liveEventsRef.current;
+    const currentOfficial = officialRef.current;
     const homeP = powersForClub(
       match.homeId,
       clubId,
       squad,
-      xi,
+      currentXi,
       nextTactics,
       aiSquads,
       true,
-      undefined,
-      undefined,
+      philosophy,
+      coachOvr,
       match.awayId,
       difficulty,
+      seasonsAtClub,
     );
     const awayP = powersForClub(
       match.awayId,
       clubId,
       squad,
-      xi,
+      currentXi,
       nextTactics,
       aiSquads,
       false,
-      undefined,
-      undefined,
+      philosophy,
+      coachOvr,
       match.homeId,
       difficulty,
+      seasonsAtClub,
     );
     const updated = simulateSecondHalf(
-      { ...match, events: liveEvents, homeGoals: official.h, awayGoals: official.a },
+      {
+        ...match,
+        events: currentEvents,
+        homeGoals: currentOfficial.h,
+        awayGoals: currentOfficial.a,
+      },
       {
         homeAttack: homeP.attack,
         homeDefense: homeP.defense,
@@ -354,9 +428,20 @@ export function MatchLiveOverlay({
     setOfficial({ h: updated.homeGoals, a: updated.awayGoals });
     setScoreDirty(true);
     setFeed((prev) =>
-      [`${minute}' · ${tr("mgr.live.secondHalfReroll")}`, ...prev].slice(0, 5),
+      [`${m}' · ${tr("mgr.live.secondHalfReroll")}`, ...prev].slice(0, 5),
     );
   };
+
+  // Auto-apply queued HT tactics when the clock hits 45'
+  useEffect(() => {
+    if (minute < 45 || finished || htAppliedRef.current) return;
+    htAppliedRef.current = true;
+    const queued = queuedTacticsRef.current;
+    if (!queued) return;
+    queuedTacticsRef.current = null;
+    rerollSecondHalf(queued.formation, queued.style, 45);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minute, finished]);
 
   const applyFormation = (f: FormationId) => {
     setFormation(f);
@@ -381,7 +466,17 @@ export function MatchLiveOverlay({
         5,
       ),
     );
-    if (minute >= 45) rerollSecondHalf(f, style);
+    if (minute < 45) {
+      queuedTacticsRef.current = { formation: f, style: styleRef.current };
+      setFeed((prev) =>
+        [
+          `${minute}' · ${tr("mgr.live.tacticsQueued")}`,
+          ...prev,
+        ].slice(0, 5),
+      );
+    } else {
+      rerollSecondHalf(f, styleRef.current);
+    }
   };
 
   const applyStyle = (s: TacticStyle) => {
@@ -392,7 +487,20 @@ export function MatchLiveOverlay({
         ...f,
       ].slice(0, 5),
     );
-    if (minute >= 45) rerollSecondHalf(formation, s);
+    if (minute < 45) {
+      queuedTacticsRef.current = {
+        formation: formationRef.current,
+        style: s,
+      };
+      setFeed((f) =>
+        [
+          `${minute}' · ${tr("mgr.live.tacticsQueued")}`,
+          ...f,
+        ].slice(0, 5),
+      );
+    } else {
+      rerollSecondHalf(formationRef.current, s);
+    }
   };
 
   const applySub = (outId: string, inId: string) => {

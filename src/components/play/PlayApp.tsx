@@ -84,6 +84,11 @@ function PlayShell({ locale }: { locale: Locale }) {
           </span>
         </Link>
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          {state.phase !== "setup" && state.career && (
+            <span className="hidden font-mono text-[9px] uppercase tracking-wider text-white/35 sm:inline">
+              {tr("mgr.continue")} · T{state.career.season}
+            </span>
+          )}
           {state.phase !== "setup" && (
             <button
               type="button"

@@ -240,10 +240,12 @@ export function xiPowers(
     styleBonus * 0.55 +
     formDef;
 
+  const captainBonus = xi.some((p) => p.isCaptain) ? 0.3 : 0;
+
   return {
-    attack: clamp(attackPower, 48, 96),
-    defense: clamp(defensePower, 48, 96),
-    overall: clamp((attackPower + defensePower) / 2, 48, 96),
+    attack: clamp(attackPower + captainBonus, 48, 96),
+    defense: clamp(defensePower + captainBonus, 48, 96),
+    overall: clamp((attackPower + defensePower) / 2 + captainBonus, 48, 96),
   };
 }
 

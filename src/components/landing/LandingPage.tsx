@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { SiteHeader } from "@/components/landing/SiteHeader";
 import { SiteFooter } from "@/components/landing/SiteFooter";
 import { PastRunsSection } from "@/components/landing/PastRunsSection";
-import { playHref } from "@/lib/i18n";
+import { ContinueCareerCta } from "@/components/landing/ContinueCareerCta";
 import { t } from "@/lib/i18n/dictionary";
 import {
   coachLegacyTheme,
@@ -323,12 +322,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
           ))}
         </div>
 
-        <Link
-          href={playHref(locale)}
-          className="mt-4 inline-flex w-full max-w-xs items-center justify-center rounded-sm bg-arena-accent px-8 py-3 font-display text-xl uppercase tracking-wide text-arena-bg shadow-[0_0_24px_rgba(232,197,71,0.35)] transition-colors duration-200 hover:bg-brand-green-bright hover:text-white sm:mt-5 sm:w-auto sm:max-w-none sm:px-10 sm:py-3.5 sm:text-2xl"
-        >
-          {t(locale, "cta.play")}
-        </Link>
+        <ContinueCareerCta locale={locale} />
         <p className="mt-2 px-2 font-mono text-[10px] leading-relaxed text-white/35">
           {t(locale, "mgr.realDisclaimer")}
         </p>
