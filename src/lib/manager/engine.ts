@@ -521,7 +521,7 @@ function finishMatchAftermath(
   state: ManagerState,
   tableIn: import("@/types/manager").TableRow[],
   userResult: import("@/types/manager").MatchResult | null,
-  opts?: { skipEvents?: boolean },
+  opts?: { skipEvents?: boolean; protectJob?: boolean },
 ): ManagerState {
   if (!state.career || !state.season) return state;
   const s = state.season;
@@ -536,14 +536,21 @@ function finishMatchAftermath(
     if (!state.starters.includes(p.id)) {
       return {
         ...p,
-        fitness: clamp(p.fitness + 6, 55, 100),
+        fitness: clamp(p.fitness + (opts?.protectJob ? 10 : 6), 55, 100),
         injuredWeeks: Math.max(0, p.injuredWeeks - 1),
       };
     }
-    let fitness = clamp(p.fitness - rand(2, 5), 52, 100);
+    // Skip-season: softer drain so the squad survives the fast-forward.
+    let fitness = clamp(
+      p.fitness - (opts?.protectJob ? rand(1, 2) : rand(2, 5)),
+      opts?.protectJob ? 58 : 52,
+      100,
+    );
     let injuredWeeks = p.injuredWeeks;
     let morale = p.morale;
-    if (Math.random() < 0.04) injuredWeeks = Math.round(rand(1, 3));
+    if (!opts?.protectJob && Math.random() < 0.04) {
+      injuredWeeks = Math.round(rand(1, 3));
+    }
     if (userResult) {
       const uHome = userResult.homeId === state.career!.clubId;
       const gf = uHome ? userResult.homeGoals : userResult.awayGoals;
@@ -565,10 +572,15 @@ function finishMatchAftermath(
     const pos =
       sortTable(tableIn).findIndex((r) => r.clubId === state.career!.clubId) + 1;
     const clubs = clubsByLeague(state.career.leagueId).length;
+    const delta = boardConfidenceDelta(
+      state.career.boardGoal,
+      pos,
+      clubs,
+      result,
+    );
     boardConfidence = clamp(
-      boardConfidence +
-        boardConfidenceDelta(state.career.boardGoal, pos, clubs, result),
-      0,
+      boardConfidence + (opts?.protectJob ? Math.max(delta, -2) : delta),
+      opts?.protectJob ? 22 : 0,
       100,
     );
   }
@@ -627,7 +639,7 @@ function finishMatchAftermath(
     };
   }
 
-  if (boardConfidence <= 15) {
+  if (boardConfidence <= 15 && !opts?.protectJob) {
     return {
       ...next,
       phase: "fired",
@@ -638,7 +650,7 @@ function finishMatchAftermath(
   }
 
   if (seasonDone) {
-    return finishSeason(next);
+    return finishSeason(next, { protectJob: opts?.protectJob });
   }
 
   if (!opts?.skipEvents) {
@@ -693,7 +705,7 @@ export function skipSeason(state: ManagerState): ManagerState {
       },
       sim.table,
       sim.userResult,
-      { skipEvents: true },
+      { skipEvents: true, protectJob: true },
     );
   }
   return cur;
@@ -912,7 +924,10 @@ export function scheduleNextNationalTournament(
   };
 }
 
-function finishSeason(state: ManagerState): ManagerState {
+function finishSeason(
+  state: ManagerState,
+  opts?: { protectJob?: boolean },
+): ManagerState {
   if (!state.career || !state.season) return state;
   const table = sortTable(state.season.table);
   const pos = table.findIndex((r) => r.clubId === state.career!.clubId) + 1;
@@ -947,17 +962,17 @@ function finishSeason(state: ManagerState): ManagerState {
   }
 
   const confidence = clamp(
-    state.career.boardConfidence + (ok ? 12 : -18),
-    0,
+    state.career.boardConfidence + (ok ? 12 : opts?.protectJob ? -6 : -18),
+    opts?.protectJob ? 22 : 0,
     100,
   );
 
   const reputation = clamp(
     Math.round(
-      (coachOvr +
+      coachOvr +
         (ok ? 4 : -2) +
         (pos === 1 ? 6 : 0) +
-        (pos <= 2 ? 2 : 0)) ,
+        (pos <= 2 ? 2 : 0),
     ),
     20,
     99,
@@ -977,7 +992,8 @@ function finishSeason(state: ManagerState): ManagerState {
     peakTier,
   };
 
-  if (!ok && confidence < 35) {
+  // Skip-season never ends the career — you still get offers / season wrap.
+  if (!ok && confidence < 35 && !opts?.protectJob) {
     return endCareer(
       {
         ...state,
@@ -1004,6 +1020,7 @@ function finishSeason(state: ManagerState): ManagerState {
       seasonsInCareer: state.career.seasonsInCareer + 1,
     }),
     news: [
+      opts?.protectJob ? "mgr.news.seasonSkipped" : null,
       ok ? "mgr.news.seasonOk" : "mgr.news.seasonBad",
       pos === 1 ? "mgr.news.titleWon" : null,
       ...(offers.length ? ["mgr.news.offers"] : []),
